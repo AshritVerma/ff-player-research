@@ -146,6 +146,14 @@ tr.detail td{background:#f7fafd;padding:0;border-bottom:1px solid var(--line);te
 .gl tr.lo td.pts{color:var(--injury)}
 .gl tfoot td{font-weight:800;border-bottom:none;border-top:2px solid var(--line)}
 .glnone{font-size:.74rem;color:var(--ink-3);padding:8px 0}
+.gl tr.mE td{background:rgba(46,125,50,.09)}
+.gl tr.mE td.opp,.gl tr.mE td.orank{color:var(--green);font-weight:700}
+.gl tr.mH td{background:rgba(204,0,0,.07)}
+.gl tr.mH td.opp,.gl tr.mH td.orank{color:var(--injury);font-weight:700}
+.gl td.orank{color:var(--ink-3)}
+.gl tr.bye td{color:var(--ink-3);font-style:italic}
+.schedkey{display:flex;gap:12px;margin-top:8px;font-size:.62rem;color:var(--ink-3)}
+.schedkey i{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:4px;vertical-align:-1px}
 .dtitle{font-size:.62rem;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);margin-bottom:10px}
 .nitem{padding:9px 0;border-bottom:1px solid var(--line-soft)}
 .nitem:last-child{border-bottom:0}
@@ -338,6 +346,7 @@ body.tray-open .page{padding-bottom:120px}
     <b>GP</b> = games played out of the 17-game 2025 regular season. 2026 Proj Avg = projected total ÷ 17.
     <b>Draft RK</b> = ESPN draft board order, verified against an ESPN <a href="https://fantasy.espn.com/football/mockdraftlobby" target="_blank" rel="noopener">practice mock draft</a> player pool · <b>RK</b> = ESPN overall PPR rank (hover Draft RK for ADP).
     <b>SOS</b> = 2026 season strength of schedule rating (0–5) from <a href="https://www.fantasypros.com/nfl/strength-of-schedule.php" target="_blank" rel="noopener">FantasyPros</a> — higher = easier schedule for that player's position.
+    2026 schedule matchup colors and opponent ranks come from FantasyPros <a href="https://www.fantasypros.com/nfl/points-allowed.php" target="_blank" rel="noopener">Fantasy Points Allowed (2025)</a> — green/red follow FantasyPros' own easy/tough matchup labels; rank 1 = allowed the most fantasy points to that position.
     Projections, totals, and news from <a href="https://fantasy.espn.com/football/players/add?leagueId=714515427" target="_blank" rel="noopener">ESPN Fantasy Football</a> (PPR default scoring, matches league settings). Click any row for full news &amp; outlook.
   </p>
 </div>
@@ -346,7 +355,7 @@ body.tray-open .page{padding-bottom:120px}
 const POS_TABS=['All','QB','RB','WR','TE','FLX','K','D/ST'];
 const FLX=new Set(['RB','WR','TE']);
 const state={pos:'All',q:'',sortK:'proj26',sortDir:-1,open:new Set(),cmp:[],cmpView:'25'};
-let DATA=[];
+let DATA=[];let EXTRA={};
 
 const fmt1=v=>v==null?null:(Math.round(v*10)/10).toFixed(1);
 const esc=s=>(s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -436,6 +445,23 @@ function detailHTML(p){
       <tbody>${rows}</tbody>
       <tfoot><tr><td colspan="2">${log.length} games · avg ${ (tot/log.length).toFixed(1)}</td><td class="num">${tot.toFixed(1)}</td></tr></tfoot></table></div>`;
   };
+  const schedBox=()=>{
+    const sch=(EXTRA.sched26||{})[p.team];
+    if(!sch||!sch.length)return '';
+    const byWk={}; sch.forEach(g=>byWk[g[0]]=g[1]);
+    const rows=[];
+    for(let w=1;w<=18;w++){
+      const opp=byWk[w];
+      if(!opp){rows.push(`<tr class="bye"><td class="num">Wk ${w}</td><td class="opp">BYE</td><td class="orank"></td></tr>`);continue;}
+      const ab=opp.replace('@','');
+      const or=((EXTRA.oppRk||{})[ab]||{})[p.pos];
+      const cls=or&&or[1]==='easy'?'mE':(or&&or[1]==='hard'?'mH':'');
+      rows.push(`<tr class="${cls}"><td class="num">Wk ${w}</td><td class="opp">${opp}</td><td class="orank num">${or?or[0]:'--'}</td></tr>`);
+    }
+    return `<div class="glbox"><div class="dtitle">2026 Schedule <span style="font-weight:500;text-transform:none;letter-spacing:0">(opp rank vs ${esc(p.pos)})</span></div>
+      <table class="gl"><thead><tr><th>Week</th><th>Opp</th><th>Opp Rank</th></tr></thead><tbody>${rows.join('')}</tbody></table>
+      <div class="schedkey"><span><i style="background:rgba(46,125,50,.55)"></i>Easy matchup</span><span><i style="background:rgba(204,0,0,.45)"></i>Tough matchup</span><span>Per FantasyPros points-allowed rank (1 = most FPTS allowed to ${esc(p.pos)})</span></div></div>`;
+  };
   return `<tr class="detail"><td colspan="12"><div class="dwrap">
     <div class="dnews"><div class="dtitle">Recent News</div>${newsList}</div>
     <div class="dside">
@@ -449,7 +475,7 @@ function detailHTML(p){
       </div>
       ${p.outlook?`<div class="dtitle">2026 Outlook</div><div class="outlook">${esc(p.outlook)}</div>`:''}
     </div>
-    <div class="dlogs">${glTable(p.g25,2025)}${glTable(p.g24,2024)}</div>
+    <div class="dlogs">${schedBox()}${glTable(p.g25,2025)}${glTable(p.g24,2024)}</div>
   </div></td></tr>`;
 }
 
@@ -487,6 +513,7 @@ function render(){
 
 function init(data){
   DATA=data.players;
+  EXTRA={sched26:data.sched26||{},oppRk:data.oppRk||{}};
   document.getElementById('meta-count').textContent=DATA.length;
   const gd=new Date(data.generated);
   document.getElementById('meta-date').textContent=isNaN(gd)?'':('updated '+gd.toLocaleDateString('en-US',{month:'short',day:'numeric'}));
