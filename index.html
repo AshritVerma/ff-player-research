@@ -70,7 +70,7 @@ body{
 
 /* ---------- Table ---------- */
 .table-wrap{overflow-x:auto;overscroll-behavior-x:contain}
-table{width:100%;border-collapse:separate;border-spacing:0;min-width:1080px}
+table{width:100%;border-collapse:separate;border-spacing:0;min-width:1220px}
 thead th{
   position:sticky;z-index:5;background:var(--group-bg);
   font-size:.62rem;font-weight:700;letter-spacing:.09em;text-transform:uppercase;
@@ -79,7 +79,7 @@ thead th{
 }
 thead tr.groups th{top:0;border-bottom:1px solid var(--line-soft);padding:6px 12px;font-size:.6rem;color:var(--ink-3)}
 thead tr.cols th{top:26px}
-@media (min-width:1120px){
+@media (min-width:1260px){
   .table-wrap{overflow:visible}
   thead tr.groups th{top:56px}
   thead tr.cols th{top:82px}
@@ -152,8 +152,90 @@ tr.detail td{background:#f7fafd;padding:0;border-bottom:1px solid var(--line);te
 .note{font-size:.7rem;color:var(--ink-3);padding:14px 4px;line-height:1.6}
 .note a{color:var(--blue)}
 
+.sosbar{display:inline-flex;gap:2px;vertical-align:middle}
+.sosbar i{width:7px;height:9px;border-radius:1.5px;background:#e2e7ee;display:inline-block}
+.sosbar.good i.f{background:var(--green)}
+.sosbar.mid i.f{background:#e8a33d}
+.sosbar.tough i.f{background:var(--injury)}
+.sosbar i.h{background:linear-gradient(90deg,currentColor 50%,#e2e7ee 50%)}
+.sosbar.good i.h{color:var(--green)}.sosbar.mid i.h{color:#e8a33d}.sosbar.tough i.h{color:var(--injury)}
+
 .empty{padding:48px 20px;text-align:center;color:var(--ink-3)}
 .empty b{display:block;color:var(--ink);font-size:.9rem;margin-bottom:4px}
+
+/* ---------- Compare ---------- */
+td.cmp-td{width:34px;padding:9px 4px 9px 12px}
+.cmpbtn{
+  width:22px;height:22px;border-radius:50%;border:1.5px solid #c3c9ce;background:#fff;
+  cursor:pointer;display:inline-flex;align-items:center;justify-content:center;
+  color:var(--ink-3);transition:all .12s;padding:0;
+}
+.cmpbtn:hover{border-color:var(--blue);color:var(--blue)}
+.cmpbtn.sel{background:var(--blue);border-color:var(--blue);color:#fff}
+.cmpbtn svg{display:block}
+.tray{
+  position:fixed;left:50%;bottom:18px;transform:translateX(-50%);z-index:40;
+  background:var(--espn-dark);color:#fff;border-radius:12px;
+  box-shadow:0 8px 30px rgba(0,0,0,.35);
+  display:none;align-items:center;gap:8px;padding:10px 12px;
+  max-width:calc(100vw - 24px);flex-wrap:wrap;
+}
+.tray.show{display:flex}
+.chip{
+  display:flex;align-items:center;gap:6px;background:var(--espn-dark2);
+  border:1px solid #3a3d40;border-radius:20px;padding:4px 8px 4px 4px;font-size:.72rem;font-weight:600;
+}
+.chip img{width:22px;height:22px;border-radius:50%;object-fit:cover;object-position:top;background:#33373a}
+.chip button{border:0;background:transparent;color:#9aa3ab;cursor:pointer;font-size:.85rem;line-height:1;padding:2px}
+.chip button:hover{color:#fff}
+.tray .go{
+  border:0;border-radius:8px;background:var(--blue);color:#fff;font:inherit;font-size:.75rem;
+  font-weight:700;padding:8px 14px;cursor:pointer;
+}
+.tray .go:disabled{opacity:.45;cursor:default}
+.tray .clear{border:0;background:transparent;color:#9aa3ab;font:inherit;font-size:.72rem;cursor:pointer;padding:6px}
+.tray .clear:hover{color:#fff}
+.tray .hint{font-size:.68rem;color:#9aa3ab;padding:0 2px}
+
+.modal-bg{
+  position:fixed;inset:0;background:rgba(10,14,18,.55);z-index:50;
+  display:none;align-items:flex-start;justify-content:center;padding:4vh 14px;
+}
+.modal-bg.show{display:flex}
+.modal{
+  background:#fff;border-radius:12px;max-width:960px;width:100%;max-height:92vh;
+  display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.4);overflow:clip;
+}
+.mhead{
+  display:flex;align-items:center;gap:12px;padding:14px 18px;
+  background:var(--espn-dark);color:#fff;flex-shrink:0;
+}
+.mhead h2{font-size:.9rem;font-weight:800;letter-spacing:.02em}
+.mseg{display:flex;gap:2px;background:var(--espn-dark2);border-radius:6px;padding:3px;margin-left:auto}
+.mseg button{border:0;background:transparent;color:#9aa3ab;font:inherit;font-size:.7rem;font-weight:700;padding:5px 10px;border-radius:4px;cursor:pointer}
+.mseg button.on{background:#fff;color:var(--espn-dark)}
+.mclose{border:0;background:transparent;color:#9aa3ab;cursor:pointer;font-size:1.15rem;line-height:1;padding:4px}
+.mclose:hover{color:#fff}
+.mbody{overflow:auto;overscroll-behavior:contain}
+.cmp-grid{width:100%;border-collapse:separate;border-spacing:0;min-width:560px}
+.cmp-grid th,.cmp-grid td{padding:8px 14px;text-align:center;border-bottom:1px solid var(--line-soft);font-size:.78rem}
+.cmp-grid td.lbl,.cmp-grid th.lbl{
+  text-align:left;font-size:.68rem;font-weight:600;color:var(--ink-2);
+  position:sticky;left:0;background:#fff;min-width:110px;z-index:2;
+}
+.cmp-grid tr.sec td{
+  background:var(--group-bg);font-size:.62rem;font-weight:800;letter-spacing:.09em;
+  text-transform:uppercase;color:var(--ink-3);text-align:left;padding:7px 14px;
+}
+.cmp-grid .best{color:var(--green);font-weight:800}
+.cmp-player{padding:14px 10px 10px;vertical-align:bottom}
+.cmp-player img{width:64px;height:47px;object-fit:cover;object-position:top;border-radius:8px;background:#edf0f2;display:block;margin:0 auto 6px}
+.cmp-player img.logo-img{object-fit:contain;background:#fff;border:1px solid var(--line-soft)}
+.cmp-player .nm{font-weight:800;font-size:.8rem;color:var(--ink);line-height:1.2}
+.cmp-player .tm{font-size:.66rem;color:var(--ink-3);font-weight:600;margin-top:1px}
+.cmp-player .rm{border:0;background:transparent;color:var(--ink-3);font-size:.66rem;cursor:pointer;margin-top:4px;text-decoration:underline}
+.cmp-player .rm:hover{color:var(--injury)}
+body.tray-open .page{padding-bottom:120px}
 
 @media (max-width:760px){
   .topbar{padding:0 12px}
@@ -196,13 +278,16 @@ tr.detail td{background:#f7fafd;padding:0;border-bottom:1px solid var(--line);te
       <table>
         <thead>
           <tr class="groups">
-            <th class="l" colspan="3"></th>
+            <th class="l" colspan="5"></th>
             <th colspan="2" class="gdiv" style="text-align:center">2026 Projections</th>
             <th colspan="3" class="gdiv" style="text-align:center">2025 Season</th>
             <th class="gdiv"></th>
+            <th class="gdiv"></th>
           </tr>
           <tr class="cols" id="cols">
-            <th class="l">RK</th>
+            <th class="l" title="Select players to compare"></th>
+            <th class="sortable l" data-k="rank" title="ESPN overall rank (PPR)">RK<span class="arr"></span></th>
+            <th class="sortable l" data-k="adpRank" title="Draft rank — ESPN average draft position across live mock/real drafts">Draft RK<span class="arr"></span></th>
             <th class="l">Player</th>
             <th class="l">Recent News</th>
             <th class="sortable gdiv" data-k="proj26">Proj FPTS<span class="arr"></span></th>
@@ -211,22 +296,40 @@ tr.detail td{background:#f7fafd;padding:0;border-bottom:1px solid var(--line);te
             <th class="sortable" data-k="avg25">Avg<span class="arr"></span></th>
             <th class="sortable" data-k="gp25">GP<span class="arr"></span></th>
             <th class="sortable gdiv" data-k="pctOwned">%Rost<span class="arr"></span></th>
+            <th class="sortable gdiv" data-k="sos" title="2026 season strength of schedule (FantasyPros) — more stars = easier schedule">SOS<span class="arr"></span></th>
           </tr>
         </thead>
         <tbody id="tbody"></tbody>
       </table>
     </div>
   </div>
+  <div class="tray" id="tray" aria-live="polite"></div>
+  <div class="modal-bg" id="modal-bg">
+    <div class="modal" role="dialog" aria-label="Compare players">
+      <div class="mhead">
+        <h2>Compare Players</h2>
+        <div class="mseg" id="mseg">
+          <button data-v="25">2025 Season</button>
+          <button data-v="26">2026 Projections</button>
+        </div>
+        <button class="mclose" id="mclose" aria-label="Close">✕</button>
+      </div>
+      <div class="mbody" id="mbody"></div>
+    </div>
+  </div>
   <p class="note">
     <b>Avg</b> is the true per-game average: season fantasy points ÷ games actually played (missed games excluded).
     <b>GP</b> = games played out of the 17-game 2025 regular season. 2026 Proj Avg = projected total ÷ 17.
+    <b>RK</b> = ESPN overall PPR rank · <b>Draft RK</b> = rank by ESPN average draft position across recent live mock &amp; real drafts (the data behind the <a href="https://fantasy.espn.com/football/mockdraftlobby" target="_blank" rel="noopener">mock draft lobby</a>).
+    <b>SOS</b> = 2026 season strength of schedule from <a href="https://www.fantasypros.com/nfl/strength-of-schedule.php" target="_blank" rel="noopener">FantasyPros</a> — more stars = easier schedule for that player's position.
     Projections, totals, and news from <a href="https://fantasy.espn.com/football/players/add?leagueId=714515427" target="_blank" rel="noopener">ESPN Fantasy Football</a> (PPR default scoring, matches league settings). Click any row for full news &amp; outlook.
   </p>
 </div>
 
 <script>
-const POS_TABS=['All','QB','RB','WR','TE','K','D/ST'];
-const state={pos:'All',q:'',sortK:'proj26',sortDir:-1,open:new Set()};
+const POS_TABS=['All','QB','RB','WR','TE','FLX','K','D/ST'];
+const FLX=new Set(['RB','WR','TE']);
+const state={pos:'All',q:'',sortK:'proj26',sortDir:-1,open:new Set(),cmp:[],cmpView:'25'};
 let DATA=[];
 
 const fmt1=v=>v==null?null:(Math.round(v*10)/10).toFixed(1);
@@ -255,11 +358,29 @@ function gpCell(p){
   return `<span class="gp"><span class="num big mut">${p.gp25}<span style="font-weight:500;color:var(--ink-3)">/17</span></span><span class="gpbar"><i class="${cls}" style="width:${pct}%"></i></span></span>`;
 }
 
+function sosCell(p){
+  if(p.sos==null)return'<span class="dash">--</span>';
+  const v=p.sos;
+  const cls=v>=4?'good':(v>=3?'mid':'tough');
+  let seg='';
+  for(let s=1;s<=5;s++){
+    const fill=v>=s?1:(v>s-1?v-(s-1):0);
+    seg+=`<i class="${fill>=1?'f':(fill>0?'h':'')}"></i>`;
+  }
+  return `<span class="sosbar ${cls}" title="${v} out of 5 — ${v>=4?'favorable':(v>=3?'average':'tough')} schedule">${seg}</span>`;
+}
+
+const PLUS='<svg width="11" height="11" viewBox="0 0 12 12"><path d="M6 1v10M1 6h10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
+const CHECK='<svg width="11" height="11" viewBox="0 0 12 12"><path d="M2 6.5 5 9.5 10 2.5" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+
 function rowHTML(p,i){
   const n=p.news&&p.news[0];
   const itag=ITAG[p.injuryStatus]?`<span class="itag">${ITAG[p.injuryStatus]}</span>`:'';
+  const sel=state.cmp.includes(p.id);
   return `<tr class="p-row ${state.open.has(p.id)?'open':''}" data-id="${p.id}">
-    <td class="l rk num">${i+1}</td>
+    <td class="l cmp-td"><button class="cmpbtn ${sel?'sel':''}" data-cmp="${p.id}" aria-label="${sel?'Remove from':'Add to'} compare" title="${sel?'Remove from compare':'Add to compare'}">${sel?CHECK:PLUS}</button></td>
+    <td class="l rk num">${p.rank??i+1}</td>
+    <td class="l rk num" ${p.adp?`title="ADP ${p.adp}"`:''}>${p.adpRank??'<span class="dash">--</span>'}</td>
     <td class="l"><div class="pcell">${headshot(p)}<div>
       <div class="pname">${esc(p.name)}${itag}</div>
       <div class="psub"><b>${p.team}</b> · ${p.pos}</div>
@@ -271,6 +392,7 @@ function rowHTML(p,i){
     <td class="num mut">${p.avg25!=null&&p.gp25?fmt1(p.avg25):'<span class="dash">--</span>'}</td>
     <td>${gpCell(p)}</td>
     <td class="num mut gdiv">${p.pctOwned!=null?p.pctOwned.toFixed(1):'--'}</td>
+    <td class="gdiv">${sosCell(p)}</td>
   </tr>`;
 }
 
@@ -284,7 +406,7 @@ function detailHTML(p){
     :'<div class="nnone" style="padding:6px 0">No recent news for this player.</div>';
   const delta=(p.proj26!=null&&p.pts25!=null&&p.gp25)?p.proj26-p.pts25:null;
   const dHtml=delta==null?'':`<div class="ss"><b class="num ${delta>=0?'delta-up':'delta-dn'}">${delta>=0?'+':''}${fmt1(delta)}</b><span>Proj vs 2025</span></div>`;
-  return `<tr class="detail"><td colspan="9"><div class="dwrap">
+  return `<tr class="detail"><td colspan="12"><div class="dwrap">
     <div class="dnews"><div class="dtitle">Recent News</div>${newsList}</div>
     <div class="dside">
       <div class="side-stats">
@@ -303,7 +425,7 @@ function detailHTML(p){
 function filtered(){
   const q=state.q.toLowerCase();
   let rows=DATA.filter(p=>
-    (state.pos==='All'||p.pos===state.pos)&&
+    (state.pos==='All'||(state.pos==='FLX'?FLX.has(p.pos):p.pos===state.pos))&&
     (!q||p.name.toLowerCase().includes(q)||p.team.toLowerCase().includes(q)));
   const k=state.sortK,dir=state.sortDir;
   rows.sort((a,b)=>{
@@ -320,7 +442,7 @@ function render(){
   const rows=filtered();
   const tb=document.getElementById('tbody');
   if(!rows.length){
-    tb.innerHTML='<tr><td colspan="9"><div class="empty"><b>No players found</b>Try a different name or position filter.</div></td></tr>';
+    tb.innerHTML='<tr><td colspan="12"><div class="empty"><b>No players found</b>Try a different name or position filter.</div></td></tr>';
   }else{
     tb.innerHTML=rows.map((p,i)=>rowHTML(p,i)+(state.open.has(p.id)?detailHTML(p):'')).join('');
   }
@@ -349,21 +471,168 @@ function init(data){
   document.getElementById('cols').addEventListener('click',e=>{
     const th=e.target.closest('th.sortable');if(!th)return;
     const k=th.dataset.k;
-    if(state.sortK===k)state.sortDir*=-1;else{state.sortK=k;state.sortDir=-1;}
+    if(state.sortK===k)state.sortDir*=-1;else{state.sortK=k;state.sortDir=(k==='rank'||k==='adpRank')?1:-1;}
     render();
   });
   document.getElementById('tbody').addEventListener('click',e=>{
+    const cb=e.target.closest('.cmpbtn');
+    if(cb){toggleCmp(+cb.dataset.cmp);return;}
     if(e.target.closest('a'))return;
     const tr=e.target.closest('tr.p-row');if(!tr)return;
     const id=+tr.dataset.id;
     state.open.has(id)?state.open.delete(id):state.open.add(id);
     render();
   });
+  initCompare();
   render();
 }
 
+/* ---------- Compare feature ---------- */
+const byId=id=>DATA.find(p=>p.id===id);
+
+function toggleCmp(id){
+  const i=state.cmp.indexOf(id);
+  if(i>=0)state.cmp.splice(i,1);
+  else{
+    if(state.cmp.length>=4){flashTray();return;}
+    state.cmp.push(id);
+  }
+  render();renderTray();
+}
+function flashTray(){
+  const h=document.getElementById('tray-hint');
+  if(h){h.textContent='Max 4 players';h.style.color='#ff8a80';setTimeout(()=>{h.textContent=hintText();h.style.color='';},1600);}
+}
+const hintText=()=>state.cmp.length<2?'Select 2–4 players':'';
+
+function chipImg(p){
+  return p.pos==='D/ST'
+    ?`<img src="https://a.espncdn.com/i/teamlogos/nfl/500/${p.team.toLowerCase()}.png" alt="">`
+    :`<img src="https://a.espncdn.com/i/headshots/nfl/players/full/${p.id}.png" alt="">`;
+}
+function renderTray(){
+  const tray=document.getElementById('tray');
+  const ps=state.cmp.map(byId).filter(Boolean);
+  document.body.classList.toggle('tray-open',ps.length>0);
+  if(!ps.length){tray.classList.remove('show');tray.innerHTML='';return;}
+  tray.classList.add('show');
+  tray.innerHTML=ps.map(p=>`<span class="chip">${chipImg(p)}${esc(p.name)}<button data-rm="${p.id}" aria-label="Remove ${esc(p.name)}">✕</button></span>`).join('')
+    +`<span class="hint" id="tray-hint">${hintText()}</span>`
+    +`<button class="go" id="cmp-go" ${ps.length<2?'disabled':''}>Compare${ps.length>1?' ('+ps.length+')':''}</button>`
+    +`<button class="clear" id="cmp-clear">Clear</button>`;
+}
+
+/* stat rows: [label, key(s), lowerIsBetter] ; combo keys "a/b" render "x / y" */
+const SECTIONS=[
+  ['Passing',[['Comp / Att','1/0'],['Pass Yds','3'],['Pass TD','4'],['Interceptions','20',true]]],
+  ['Rushing',[['Carries','23'],['Rush Yds','24'],['Rush TD','25']]],
+  ['Receiving',[['Targets','58'],['Receptions','53'],['Rec Yds','42'],['Rec TD','43']]],
+  ['Kicking',[['FGM / FGA','83/84'],['FG 50+ Made','74'],['XPM / XPA','86/87']]],
+  ['Defense / ST',[['Sacks','99'],['Interceptions','95'],['Fumbles Recovered','96'],['Defensive TD','105'],['Points Allowed','120',true],['Yards Allowed','127',true]]],
+  ['Ball Security',[['Fumbles Lost','72',true]]],
+];
+const rawOf=p=>state.cmpView==='25'?(p.raw25||{}):(p.raw26||{});
+const fmtStat=v=>v==null?null:(Math.abs(v-Math.round(v))<.05?Math.round(v).toLocaleString():v.toFixed(1));
+
+function bestMark(vals,low){
+  const nums=vals.filter(v=>v!=null);
+  if(nums.length<2)return vals.map(()=>false);
+  const best=low?Math.min(...nums):Math.max(...nums);
+  return vals.map(v=>v!=null&&v===best);
+}
+function statRow(label,key,low,ps){
+  let vals,cells;
+  if(key.includes('/')){
+    const [a,b]=key.split('/');
+    vals=ps.map(p=>rawOf(p)[a]??null);
+    const mk=bestMark(vals,low);
+    cells=ps.map((p,i)=>{
+      const va=rawOf(p)[a],vb=rawOf(p)[b];
+      if(va==null&&vb==null)return'<td><span class="dash">--</span></td>';
+      return `<td class="num ${mk[i]?'best':''}">${fmtStat(va)??0} / ${fmtStat(vb)??0}</td>`;
+    });
+  }else{
+    vals=ps.map(p=>rawOf(p)[key]??null);
+    if(vals.every(v=>v==null))return'';
+    const mk=bestMark(vals,low);
+    cells=ps.map((p,i)=>vals[i]==null?'<td><span class="dash">--</span></td>':`<td class="num ${mk[i]?'best':''}">${fmtStat(vals[i])}</td>`);
+  }
+  if(vals.every(v=>v==null))return'';
+  return `<tr><td class="lbl">${label}</td>${cells.join('')}</tr>`;
+}
+function summaryRow(label,getter,ps,{low=false,fmt=fmt1}={}){
+  const vals=ps.map(getter);
+  const mk=bestMark(vals,low);
+  const cells=ps.map((p,i)=>vals[i]==null?'<td><span class="dash">--</span></td>':`<td class="num ${mk[i]?'best':''}">${fmt(vals[i])}</td>`);
+  return `<tr><td class="lbl">${label}</td>${cells.join('')}</tr>`;
+}
+function buildModal(){
+  const ps=state.cmp.map(byId).filter(Boolean);
+  const mb=document.getElementById('mbody');
+  document.querySelectorAll('#mseg button').forEach(b=>b.classList.toggle('on',b.dataset.v===state.cmpView));
+  const head=`<tr><th class="lbl"></th>${ps.map(p=>`<th class="cmp-player">
+      ${p.pos==='D/ST'?`<img class="logo-img" src="https://a.espncdn.com/i/teamlogos/nfl/500/${p.team.toLowerCase()}.png" alt="">`:`<img src="https://a.espncdn.com/i/headshots/nfl/players/full/${p.id}.png" alt="">`}
+      <div class="nm">${esc(p.name)}${ITAG[p.injuryStatus]?`<span class="itag">${ITAG[p.injuryStatus]}</span>`:''}</div>
+      <div class="tm">${p.team} · ${p.pos}</div>
+      <button class="rm" data-rm="${p.id}">remove</button>
+    </th>`).join('')}</tr>`;
+  const nsec=ps.length+1;
+  const fantasy=
+    `<tr class="sec"><td colspan="${nsec}">Fantasy</td></tr>`
+    +summaryRow('2026 Proj FPTS',p=>p.proj26,ps)
+    +summaryRow('2026 Proj Avg',p=>p.projAvg26,ps)
+    +summaryRow('2025 FPTS',p=>p.gp25?p.pts25:null,ps)
+    +summaryRow('2025 True Avg',p=>p.gp25?p.avg25:null,ps)
+    +summaryRow('2025 Games Played',p=>p.gp25,ps,{fmt:v=>v+' / 17'})
+    +summaryRow('% Rostered',p=>p.pctOwned,ps,{fmt:v=>v.toFixed(1)+'%'})
+    +summaryRow('% Started',p=>p.pctStarted,ps,{fmt:v=>v.toFixed(1)+'%'})
+    +summaryRow('ESPN Rank',p=>p.rank,ps,{low:true,fmt:v=>'#'+v})
+    +summaryRow('Draft Rank (ADP)',p=>p.adpRank,ps,{low:true,fmt:v=>'#'+v})
+    +summaryRow('2026 SOS',p=>p.sos,ps,{fmt:v=>v+' / 5'});
+  const yr=state.cmpView==='25'?'2025':'2026 Projected';
+  const secs=SECTIONS.map(([title,rows])=>{
+    const body=rows.map(([l,k,low])=>statRow(l,k,low,ps)).join('');
+    return body?`<tr class="sec"><td colspan="${nsec}">${title} — ${yr}</td></tr>`+body:'';
+  }).join('');
+  mb.innerHTML=`<table class="cmp-grid"><thead>${head}</thead><tbody>${fantasy}${secs}</tbody></table>`;
+}
+function openModal(){
+  if(state.cmp.length<2)return;
+  buildModal();
+  document.getElementById('modal-bg').classList.add('show');
+  document.body.style.overflow='hidden';
+}
+function closeModal(){
+  document.getElementById('modal-bg').classList.remove('show');
+  document.body.style.overflow='';
+}
+function initCompare(){
+  document.getElementById('tray').addEventListener('click',e=>{
+    const rm=e.target.closest('[data-rm]');
+    if(rm){toggleCmp(+rm.dataset.rm);return;}
+    if(e.target.id==='cmp-go')openModal();
+    if(e.target.id==='cmp-clear'){state.cmp=[];render();renderTray();}
+  });
+  const bg=document.getElementById('modal-bg');
+  bg.addEventListener('click',e=>{
+    const rm=e.target.closest('.rm');
+    if(rm){
+      toggleCmp(+rm.dataset.rm);
+      if(state.cmp.length<2)closeModal();else buildModal();
+      return;
+    }
+    if(e.target===bg)closeModal();
+  });
+  document.getElementById('mclose').addEventListener('click',closeModal);
+  document.getElementById('mseg').addEventListener('click',e=>{
+    const b=e.target.closest('button');if(!b)return;
+    state.cmpView=b.dataset.v;buildModal();
+  });
+  document.addEventListener('keydown',e=>{if(e.key==='Escape')closeModal();});
+}
+
 fetch('data.json').then(r=>r.json()).then(init).catch(()=>{
-  document.getElementById('tbody').innerHTML='<tr><td colspan="9"><div class="empty"><b>Couldn\'t load player data</b>Refresh to try again.</div></td></tr>';
+  document.getElementById('tbody').innerHTML='<tr><td colspan="12"><div class="empty"><b>Couldn\'t load player data</b>Refresh to try again.</div></td></tr>';
 });
 </script>
 </body>
