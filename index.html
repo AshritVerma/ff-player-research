@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Player Research — Boys Nation FF Connoisseurs</title>
+<title>Player Research</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
@@ -152,6 +152,9 @@ tr.detail td{background:#f7fafd;padding:0;border-bottom:1px solid var(--line);te
 .note{font-size:.7rem;color:var(--ink-3);padding:14px 4px;line-height:1.6}
 .note a{color:var(--blue)}
 
+.soswrap{display:inline-flex;align-items:center;gap:7px}
+.sosnum{font-weight:700;font-size:12.5px;min-width:26px;text-align:right}
+.sosnum.good{color:var(--green)}.sosnum.mid{color:#b97f22}.sosnum.tough{color:var(--injury)}
 .sosbar{display:inline-flex;gap:2px;vertical-align:middle}
 .sosbar i{width:7px;height:9px;border-radius:1.5px;background:#e2e7ee;display:inline-block}
 .sosbar.good i.f{background:var(--green)}
@@ -254,9 +257,7 @@ body.tray-open .page{padding-bottom:120px}
       <path d="M8 22 L13 15 L17 18 L24 9" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
       <circle cx="24" cy="9" r="2.4" fill="#fff"/>
     </svg>
-    <div class="brand">Player Research
-      <small>Boys Nation FF Connoisseurs</small>
-    </div>
+    <div class="brand">Player Research</div>
   </div>
   <div class="meta num">
     <b id="meta-count">—</b> players · PPR scoring<br>
@@ -286,8 +287,8 @@ body.tray-open .page{padding-bottom:120px}
           </tr>
           <tr class="cols" id="cols">
             <th class="l" title="Select players to compare"></th>
+            <th class="sortable l" data-k="adpRank" title="Draft rank — from a live ESPN practice mock draft">Draft RK<span class="arr"></span></th>
             <th class="sortable l" data-k="rank" title="ESPN overall rank (PPR)">RK<span class="arr"></span></th>
-            <th class="sortable l" data-k="adpRank" title="Draft rank — ESPN average draft position across live mock/real drafts">Draft RK<span class="arr"></span></th>
             <th class="l">Player</th>
             <th class="l">Recent News</th>
             <th class="sortable gdiv" data-k="proj26">Proj FPTS<span class="arr"></span></th>
@@ -320,8 +321,8 @@ body.tray-open .page{padding-bottom:120px}
   <p class="note">
     <b>Avg</b> is the true per-game average: season fantasy points ÷ games actually played (missed games excluded).
     <b>GP</b> = games played out of the 17-game 2025 regular season. 2026 Proj Avg = projected total ÷ 17.
-    <b>RK</b> = ESPN overall PPR rank · <b>Draft RK</b> = rank by ESPN average draft position across recent live mock &amp; real drafts (the data behind the <a href="https://fantasy.espn.com/football/mockdraftlobby" target="_blank" rel="noopener">mock draft lobby</a>).
-    <b>SOS</b> = 2026 season strength of schedule from <a href="https://www.fantasypros.com/nfl/strength-of-schedule.php" target="_blank" rel="noopener">FantasyPros</a> — more stars = easier schedule for that player's position.
+    <b>Draft RK</b> = draft rank pulled from an ESPN <a href="https://fantasy.espn.com/football/mockdraftlobby" target="_blank" rel="noopener">practice mock draft</a> player pool · <b>RK</b> = ESPN overall PPR rank.
+    <b>SOS</b> = 2026 season strength of schedule rating (0–5) from <a href="https://www.fantasypros.com/nfl/strength-of-schedule.php" target="_blank" rel="noopener">FantasyPros</a> — higher = easier schedule for that player's position.
     Projections, totals, and news from <a href="https://fantasy.espn.com/football/players/add?leagueId=714515427" target="_blank" rel="noopener">ESPN Fantasy Football</a> (PPR default scoring, matches league settings). Click any row for full news &amp; outlook.
   </p>
 </div>
@@ -367,7 +368,8 @@ function sosCell(p){
     const fill=v>=s?1:(v>s-1?v-(s-1):0);
     seg+=`<i class="${fill>=1?'f':(fill>0?'h':'')}"></i>`;
   }
-  return `<span class="sosbar ${cls}" title="${v} out of 5 — ${v>=4?'favorable':(v>=3?'average':'tough')} schedule">${seg}</span>`;
+  const num=(Math.round(v*100)/100).toFixed(2).replace(/0$/,'').replace(/\.0$/,'.0');
+  return `<span class="soswrap"><span class="num sosnum ${cls}">${num}</span><span class="sosbar ${cls}" title="${num} out of 5 — ${v>=4?'favorable':(v>=3?'average':'tough')} schedule">${seg}</span></span>`;
 }
 
 const PLUS='<svg width="11" height="11" viewBox="0 0 12 12"><path d="M6 1v10M1 6h10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
@@ -379,8 +381,8 @@ function rowHTML(p,i){
   const sel=state.cmp.includes(p.id);
   return `<tr class="p-row ${state.open.has(p.id)?'open':''}" data-id="${p.id}">
     <td class="l cmp-td"><button class="cmpbtn ${sel?'sel':''}" data-cmp="${p.id}" aria-label="${sel?'Remove from':'Add to'} compare" title="${sel?'Remove from compare':'Add to compare'}">${sel?CHECK:PLUS}</button></td>
-    <td class="l rk num">${p.rank??i+1}</td>
     <td class="l rk num" ${p.adp?`title="ADP ${p.adp}"`:''}>${p.adpRank??'<span class="dash">--</span>'}</td>
+    <td class="l rk num">${p.rank??i+1}</td>
     <td class="l"><div class="pcell">${headshot(p)}<div>
       <div class="pname">${esc(p.name)}${itag}</div>
       <div class="psub"><b>${p.team}</b> · ${p.pos}</div>
@@ -586,9 +588,9 @@ function buildModal(){
     +summaryRow('2025 Games Played',p=>p.gp25,ps,{fmt:v=>v+' / 17'})
     +summaryRow('% Rostered',p=>p.pctOwned,ps,{fmt:v=>v.toFixed(1)+'%'})
     +summaryRow('% Started',p=>p.pctStarted,ps,{fmt:v=>v.toFixed(1)+'%'})
+    +summaryRow('Draft Rank',p=>p.adpRank,ps,{low:true,fmt:v=>'#'+v})
     +summaryRow('ESPN Rank',p=>p.rank,ps,{low:true,fmt:v=>'#'+v})
-    +summaryRow('Draft Rank (ADP)',p=>p.adpRank,ps,{low:true,fmt:v=>'#'+v})
-    +summaryRow('2026 SOS',p=>p.sos,ps,{fmt:v=>v+' / 5'});
+    +summaryRow('2026 SOS',p=>p.sos,ps,{fmt:v=>(Math.round(v*100)/100)+' / 5'});
   const yr=state.cmpView==='25'?'2025':'2026 Projected';
   const secs=SECTIONS.map(([title,rows])=>{
     const body=rows.map(([l,k,low])=>statRow(l,k,low,ps)).join('');
