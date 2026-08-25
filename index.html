@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Player Research — Boys Nation FF Connoisseurs</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --espn-dark:#17181a; --espn-dark2:#222426;
+  --blue:#0668d0; --blue-dark:#0554aa;
+  --red:#cc0000; --injury:#c8102e;
+  --ink:#1a1a1a; --ink-2:#4d5257; --ink-3:#7c8288;
+  --line:#e4e7ea; --line-soft:#eef0f2;
+  --bg:#f4f5f6; --card:#ffffff;
+  --hover:#f3f8fd; --group-bg:#fafbfc;
+  --green:#0a7d33;
+  --radius:8px;
+  font-size:16px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{
+  font-family:'Inter',-apple-system,'Segoe UI',Helvetica,Arial,sans-serif;
+  background:var(--bg); color:var(--ink);
+  font-size:.8125rem; line-height:1.45;
+  -webkit-font-smoothing:antialiased;
+}
+.num{font-variant-numeric:tabular-nums lining-nums}
+
+/* ---------- Top bar ---------- */
+.topbar{
+  background:var(--espn-dark); color:#fff;
+  padding:0 20px; height:56px;
+  display:flex; align-items:center; gap:14px;
+  position:sticky; top:0; z-index:30;
+}
+.logo{display:flex;align-items:center;gap:10px;flex-shrink:0}
+.brand{font-weight:800;font-size:.95rem;letter-spacing:.02em;white-space:nowrap}
+.brand small{display:block;font-weight:500;font-size:.66rem;color:#9aa3ab;letter-spacing:.06em;text-transform:uppercase}
+.topbar .meta{margin-left:auto;font-size:.7rem;color:#9aa3ab;text-align:right;line-height:1.4}
+.topbar .meta b{color:#e8eaec;font-weight:600}
+
+/* ---------- Page ---------- */
+.page{max-width:1240px;margin:0 auto;padding:18px 16px 60px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius)}
+.controls{border-radius:var(--radius) var(--radius) 0 0}
+
+/* ---------- Controls ---------- */
+.controls{
+  display:flex;flex-wrap:wrap;align-items:center;gap:10px;
+  padding:12px 14px;border-bottom:1px solid var(--line);
+  background:#fff;position:relative;
+}
+.search{position:relative;flex:1 1 220px;max-width:320px}
+.search svg{position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--ink-3)}
+.search input{
+  width:100%;padding:8px 10px 8px 32px;border:1px solid var(--line);
+  border-radius:6px;font:inherit;font-size:.8125rem;outline:none;background:#fbfcfd;
+}
+.search input:focus{border-color:var(--blue);background:#fff;box-shadow:0 0 0 3px rgba(6,104,208,.12)}
+.tabs{display:flex;gap:2px;background:var(--line-soft);border-radius:6px;padding:3px}
+.tabs button{
+  border:0;background:transparent;font:inherit;font-size:.75rem;font-weight:600;
+  color:var(--ink-2);padding:6px 12px;border-radius:4px;cursor:pointer;
+}
+.tabs button:hover{color:var(--ink)}
+.tabs button.on{background:#fff;color:var(--blue);box-shadow:0 1px 2px rgba(0,0,0,.12)}
+.count{margin-left:auto;font-size:.72rem;color:var(--ink-3);white-space:nowrap}
+
+/* ---------- Table ---------- */
+.table-wrap{overflow-x:auto;overscroll-behavior-x:contain}
+table{width:100%;border-collapse:separate;border-spacing:0;min-width:1080px}
+thead th{
+  position:sticky;z-index:5;background:var(--group-bg);
+  font-size:.62rem;font-weight:700;letter-spacing:.09em;text-transform:uppercase;
+  color:var(--ink-3);text-align:right;padding:7px 12px;border-bottom:1px solid var(--line);
+  white-space:nowrap;user-select:none;
+}
+thead tr.groups th{top:0;border-bottom:1px solid var(--line-soft);padding:6px 12px;font-size:.6rem;color:var(--ink-3)}
+thead tr.cols th{top:26px}
+@media (min-width:1120px){
+  .table-wrap{overflow:visible}
+  thead tr.groups th{top:56px}
+  thead tr.cols th{top:82px}
+}
+thead th.l{text-align:left}
+th.sortable{cursor:pointer}
+th.sortable:hover{color:var(--blue)}
+th.sorted{color:var(--blue)}
+th .arr{font-size:.55rem;margin-left:2px}
+th.gdiv,td.gdiv{border-left:1px solid var(--line)}
+tbody td{padding:9px 12px;border-bottom:1px solid var(--line-soft);text-align:right;vertical-align:middle;background:#fff}
+tbody tr.p-row{cursor:pointer}
+tbody tr.p-row:hover td{background:var(--hover)}
+tbody tr.p-row.open td{background:#eef5fc;border-bottom-color:#d7e6f5}
+td.l{text-align:left}
+td.rk{color:var(--ink-3);font-size:.72rem;width:38px}
+
+/* player cell */
+.pcell{display:flex;align-items:center;gap:10px;min-width:190px}
+.hs{
+  width:40px;height:29px;flex-shrink:0;border-radius:5px;background:#edf0f2;
+  object-fit:cover;object-position:top;
+}
+.hs.logo-img{object-fit:contain;padding:2px;background:#fff;border:1px solid var(--line-soft)}
+.pname{font-weight:700;color:var(--blue);font-size:.8125rem;line-height:1.25;white-space:nowrap}
+.psub{font-size:.68rem;color:var(--ink-3);font-weight:500}
+.psub b{color:var(--ink-2);font-weight:600}
+.itag{
+  display:inline-block;margin-left:5px;font-size:.6rem;font-weight:800;color:var(--injury);
+}
+/* news cell */
+.ncell{max-width:340px;min-width:240px}
+.nhead{
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;
+  font-size:.75rem;color:var(--ink);line-height:1.35;
+}
+.ntime{font-size:.66rem;color:var(--ink-3);margin-top:2px}
+.nnone{font-size:.72rem;color:var(--ink-3);font-style:normal}
+/* stats */
+.big{font-weight:700;font-size:.8125rem}
+.mut{color:var(--ink-2)}
+.dash{color:#b7bcc1}
+/* GP bar */
+.gp{display:inline-flex;flex-direction:column;align-items:flex-end;gap:3px;min-width:56px}
+.gpbar{width:52px;height:3px;border-radius:2px;background:var(--line);overflow:hidden}
+.gpbar i{display:block;height:100%;background:var(--green);border-radius:2px}
+.gpbar i.warn{background:#d97706}
+.gpbar i.bad{background:var(--injury)}
+
+/* ---------- Expanded detail ---------- */
+tr.detail td{background:#f7fafd;padding:0;border-bottom:1px solid var(--line);text-align:left}
+.dwrap{display:grid;grid-template-columns:1.4fr 1fr;gap:0}
+.dnews{padding:16px 20px;border-right:1px solid var(--line-soft)}
+.dside{padding:16px 20px}
+.dtitle{font-size:.62rem;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);margin-bottom:10px}
+.nitem{padding:9px 0;border-bottom:1px solid var(--line-soft)}
+.nitem:last-child{border-bottom:0}
+.nitem a{color:var(--blue);font-weight:600;font-size:.78rem;text-decoration:none}
+.nitem a:hover{text-decoration:underline}
+.nitem p{font-size:.72rem;color:var(--ink-2);margin-top:2px}
+.nitem .ntime{margin-top:3px}
+.outlook{font-size:.75rem;color:var(--ink-2);line-height:1.55}
+.side-stats{display:grid;grid-template-columns:1fr 1fr;gap:8px 16px;margin-bottom:14px}
+.ss{background:#fff;border:1px solid var(--line-soft);border-radius:6px;padding:8px 10px}
+.ss b{display:block;font-size:.9rem;font-weight:700}
+.ss span{font-size:.62rem;color:var(--ink-3);text-transform:uppercase;letter-spacing:.06em;font-weight:600}
+.delta-up{color:var(--green)} .delta-dn{color:var(--injury)}
+
+/* footer note */
+.note{font-size:.7rem;color:var(--ink-3);padding:14px 4px;line-height:1.6}
+.note a{color:var(--blue)}
+
+.empty{padding:48px 20px;text-align:center;color:var(--ink-3)}
+.empty b{display:block;color:var(--ink);font-size:.9rem;margin-bottom:4px}
+
+@media (max-width:760px){
+  .topbar{padding:0 12px}
+  .topbar .meta{display:none}
+  .page{padding:10px 8px 40px}
+  .count{display:none}
+}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="logo">
+    <svg width="30" height="30" viewBox="0 0 32 32" fill="none" aria-label="Gridiron IQ logo">
+      <rect x="1" y="1" width="30" height="30" rx="7" fill="#cc0000"/>
+      <path d="M8 22 L13 15 L17 18 L24 9" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+      <circle cx="24" cy="9" r="2.4" fill="#fff"/>
+    </svg>
+    <div class="brand">Player Research
+      <small>Boys Nation FF Connoisseurs</small>
+    </div>
+  </div>
+  <div class="meta num">
+    <b id="meta-count">—</b> players · PPR scoring<br>
+    Data: ESPN Fantasy · <span id="meta-date">—</span>
+  </div>
+</header>
+
+<div class="page">
+  <div class="card">
+    <div class="controls">
+      <div class="search">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.8-3.8"/></svg>
+        <input id="q" type="text" placeholder="Player name or team…" autocomplete="off">
+      </div>
+      <div class="tabs" id="tabs"></div>
+      <div class="count num" id="count"></div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr class="groups">
+            <th class="l" colspan="3"></th>
+            <th colspan="2" class="gdiv" style="text-align:center">2026 Projections</th>
+            <th colspan="3" class="gdiv" style="text-align:center">2025 Season</th>
+            <th class="gdiv"></th>
+          </tr>
+          <tr class="cols" id="cols">
+            <th class="l">RK</th>
+            <th class="l">Player</th>
+            <th class="l">Recent News</th>
+            <th class="sortable gdiv" data-k="proj26">Proj FPTS<span class="arr"></span></th>
+            <th class="sortable" data-k="projAvg26">Proj Avg<span class="arr"></span></th>
+            <th class="sortable gdiv" data-k="pts25">FPTS<span class="arr"></span></th>
+            <th class="sortable" data-k="avg25">Avg<span class="arr"></span></th>
+            <th class="sortable" data-k="gp25">GP<span class="arr"></span></th>
+            <th class="sortable gdiv" data-k="pctOwned">%Rost<span class="arr"></span></th>
+          </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+  </div>
+  <p class="note">
+    <b>Avg</b> is the true per-game average: season fantasy points ÷ games actually played (missed games excluded).
+    <b>GP</b> = games played out of the 17-game 2025 regular season. 2026 Proj Avg = projected total ÷ 17.
+    Projections, totals, and news from <a href="https://fantasy.espn.com/football/players/add?leagueId=714515427" target="_blank" rel="noopener">ESPN Fantasy Football</a> (PPR default scoring, matches league settings). Click any row for full news &amp; outlook.
+  </p>
+</div>
+
+<script>
+const POS_TABS=['All','QB','RB','WR','TE','K','D/ST'];
+const state={pos:'All',q:'',sortK:'proj26',sortDir:-1,open:new Set()};
+let DATA=[];
+
+const fmt1=v=>v==null?null:(Math.round(v*10)/10).toFixed(1);
+const esc=s=>(s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+function timeAgo(iso){
+  if(!iso)return'';
+  const d=new Date(iso),now=new Date(),s=(now-d)/1000;
+  if(s<3600)return Math.max(1,Math.round(s/60))+'m ago';
+  if(s<86400)return Math.round(s/3600)+'h ago';
+  if(s<86400*14)return Math.round(s/86400)+'d ago';
+  return d.toLocaleDateString('en-US',{month:'short',day:'numeric'});
+}
+function headshot(p){
+  if(p.pos==='D/ST'){
+    return `<img class="hs logo-img" loading="lazy" src="https://a.espncdn.com/i/teamlogos/nfl/500/${p.team.toLowerCase()}.png" alt="" onerror="this.style.visibility='hidden'">`;
+  }
+  return `<img class="hs" loading="lazy" src="https://a.espncdn.com/i/headshots/nfl/players/full/${p.id}.png" alt="" onerror="this.style.visibility='hidden'">`;
+}
+const ITAG={QUESTIONABLE:'Q',DOUBTFUL:'D',OUT:'O',INJURY_RESERVE:'IR',SUSPENSION:'SUS'};
+
+function gpCell(p){
+  if(p.gp25==null)return'<span class="dash">--</span>';
+  const pct=p.gp25/17*100;
+  const cls=p.gp25>=15?'':(p.gp25>=10?'warn':'bad');
+  return `<span class="gp"><span class="num big mut">${p.gp25}<span style="font-weight:500;color:var(--ink-3)">/17</span></span><span class="gpbar"><i class="${cls}" style="width:${pct}%"></i></span></span>`;
+}
+
+function rowHTML(p,i){
+  const n=p.news&&p.news[0];
+  const itag=ITAG[p.injuryStatus]?`<span class="itag">${ITAG[p.injuryStatus]}</span>`:'';
+  return `<tr class="p-row ${state.open.has(p.id)?'open':''}" data-id="${p.id}">
+    <td class="l rk num">${i+1}</td>
+    <td class="l"><div class="pcell">${headshot(p)}<div>
+      <div class="pname">${esc(p.name)}${itag}</div>
+      <div class="psub"><b>${p.team}</b> · ${p.pos}</div>
+    </div></div></td>
+    <td class="l ncell">${n?`<div class="nhead">${esc(n.h)}</div><div class="ntime">${timeAgo(n.t)}</div>`:'<span class="nnone">No recent news</span>'}</td>
+    <td class="num big gdiv">${fmt1(p.proj26)??'<span class="dash">--</span>'}</td>
+    <td class="num mut">${fmt1(p.projAvg26)??'<span class="dash">--</span>'}</td>
+    <td class="num big gdiv">${p.pts25!=null&&p.gp25?fmt1(p.pts25):'<span class="dash">--</span>'}</td>
+    <td class="num mut">${p.avg25!=null&&p.gp25?fmt1(p.avg25):'<span class="dash">--</span>'}</td>
+    <td>${gpCell(p)}</td>
+    <td class="num mut gdiv">${p.pctOwned!=null?p.pctOwned.toFixed(1):'--'}</td>
+  </tr>`;
+}
+
+function detailHTML(p){
+  const newsList=(p.news&&p.news.length)?p.news.map(n=>`
+    <div class="nitem">
+      ${n.u?`<a href="${esc(n.u)}" target="_blank" rel="noopener">${esc(n.h)}</a>`:`<span style="font-weight:600;font-size:.78rem">${esc(n.h)}</span>`}
+      ${n.d&&n.d!==n.h?`<p>${esc(n.d)}</p>`:''}
+      <div class="ntime">${timeAgo(n.t)}</div>
+    </div>`).join('')
+    :'<div class="nnone" style="padding:6px 0">No recent news for this player.</div>';
+  const delta=(p.proj26!=null&&p.pts25!=null&&p.gp25)?p.proj26-p.pts25:null;
+  const dHtml=delta==null?'':`<div class="ss"><b class="num ${delta>=0?'delta-up':'delta-dn'}">${delta>=0?'+':''}${fmt1(delta)}</b><span>Proj vs 2025</span></div>`;
+  return `<tr class="detail"><td colspan="9"><div class="dwrap">
+    <div class="dnews"><div class="dtitle">Recent News</div>${newsList}</div>
+    <div class="dside">
+      <div class="side-stats">
+        <div class="ss"><b class="num">${fmt1(p.proj26)??'--'}</b><span>2026 Proj FPTS</span></div>
+        <div class="ss"><b class="num">${fmt1(p.projAvg26)??'--'}</b><span>2026 Proj Avg</span></div>
+        <div class="ss"><b class="num">${p.gp25?fmt1(p.pts25):'--'}</b><span>2025 FPTS</span></div>
+        <div class="ss"><b class="num">${p.gp25?fmt1(p.avg25):'--'}</b><span>2025 True Avg</span></div>
+        <div class="ss"><b class="num">${p.gp25!=null?p.gp25+' / 17':'--'}</b><span>2025 Games</span></div>
+        ${dHtml||`<div class="ss"><b class="num">${p.pctStarted!=null?p.pctStarted.toFixed(1)+'%':'--'}</b><span>%Started</span></div>`}
+      </div>
+      ${p.outlook?`<div class="dtitle">2026 Outlook</div><div class="outlook">${esc(p.outlook)}</div>`:''}
+    </div>
+  </div></td></tr>`;
+}
+
+function filtered(){
+  const q=state.q.toLowerCase();
+  let rows=DATA.filter(p=>
+    (state.pos==='All'||p.pos===state.pos)&&
+    (!q||p.name.toLowerCase().includes(q)||p.team.toLowerCase().includes(q)));
+  const k=state.sortK,dir=state.sortDir;
+  rows.sort((a,b)=>{
+    const av=a[k],bv=b[k];
+    if(av==null&&bv==null)return 0;
+    if(av==null)return 1;
+    if(bv==null)return -1;
+    return (av-bv)*dir;
+  });
+  return rows;
+}
+
+function render(){
+  const rows=filtered();
+  const tb=document.getElementById('tbody');
+  if(!rows.length){
+    tb.innerHTML='<tr><td colspan="9"><div class="empty"><b>No players found</b>Try a different name or position filter.</div></td></tr>';
+  }else{
+    tb.innerHTML=rows.map((p,i)=>rowHTML(p,i)+(state.open.has(p.id)?detailHTML(p):'')).join('');
+  }
+  document.getElementById('count').textContent=`Showing ${rows.length} of ${DATA.length} players`;
+  document.querySelectorAll('th.sortable').forEach(th=>{
+    const on=th.dataset.k===state.sortK;
+    th.classList.toggle('sorted',on);
+    th.querySelector('.arr').textContent=on?(state.sortDir<0?'▼':'▲'):'';
+  });
+}
+
+function init(data){
+  DATA=data.players;
+  document.getElementById('meta-count').textContent=DATA.length;
+  const gd=new Date(data.generated);
+  document.getElementById('meta-date').textContent=isNaN(gd)?'':('updated '+gd.toLocaleDateString('en-US',{month:'short',day:'numeric'}));
+  const tabs=document.getElementById('tabs');
+  tabs.innerHTML=POS_TABS.map(t=>`<button class="${t===state.pos?'on':''}" data-pos="${t}">${t}</button>`).join('');
+  tabs.addEventListener('click',e=>{
+    const b=e.target.closest('button');if(!b)return;
+    state.pos=b.dataset.pos;
+    tabs.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));
+    render();
+  });
+  document.getElementById('q').addEventListener('input',e=>{state.q=e.target.value.trim();render();});
+  document.getElementById('cols').addEventListener('click',e=>{
+    const th=e.target.closest('th.sortable');if(!th)return;
+    const k=th.dataset.k;
+    if(state.sortK===k)state.sortDir*=-1;else{state.sortK=k;state.sortDir=-1;}
+    render();
+  });
+  document.getElementById('tbody').addEventListener('click',e=>{
+    if(e.target.closest('a'))return;
+    const tr=e.target.closest('tr.p-row');if(!tr)return;
+    const id=+tr.dataset.id;
+    state.open.has(id)?state.open.delete(id):state.open.add(id);
+    render();
+  });
+  render();
+}
+
+fetch('data.json').then(r=>r.json()).then(init).catch(()=>{
+  document.getElementById('tbody').innerHTML='<tr><td colspan="9"><div class="empty"><b>Couldn\'t load player data</b>Refresh to try again.</div></td></tr>';
+});
+</script>
+</body>
+</html>
