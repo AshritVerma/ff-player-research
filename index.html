@@ -134,6 +134,18 @@ tr.detail td{background:#f7fafd;padding:0;border-bottom:1px solid var(--line);te
 .dwrap{display:grid;grid-template-columns:1.4fr 1fr;gap:0}
 .dnews{padding:16px 20px;border-right:1px solid var(--line-soft)}
 .dside{padding:16px 20px}
+.dlogs{grid-column:1/-1;border-top:1px solid var(--line-soft);padding:14px 20px;display:flex;gap:28px;flex-wrap:wrap}
+.glbox{flex:1;min-width:250px;max-width:420px}
+.gl{width:100%;min-width:0;border-collapse:separate;border-spacing:0;font-size:.72rem}
+.gl th{font-size:.62rem;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-3);text-align:right;padding:3px 8px;border-bottom:1px solid var(--line)}
+.gl th:first-child,.gl td:first-child{text-align:left}
+.gl td{padding:3px 8px;border-bottom:1px solid var(--line-soft);text-align:right}
+.gl td.opp{color:var(--ink-2)}
+.gl td.pts{font-weight:700}
+.gl tr.hi td.pts{color:var(--green)}
+.gl tr.lo td.pts{color:var(--injury)}
+.gl tfoot td{font-weight:800;border-bottom:none;border-top:2px solid var(--line)}
+.glnone{font-size:.74rem;color:var(--ink-3);padding:8px 0}
 .dtitle{font-size:.62rem;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);margin-bottom:10px}
 .nitem{padding:9px 0;border-bottom:1px solid var(--line-soft)}
 .nitem:last-child{border-bottom:0}
@@ -231,6 +243,9 @@ td.cmp-td{width:34px;padding:9px 4px 9px 12px}
   text-transform:uppercase;color:var(--ink-3);text-align:left;padding:7px 14px;
 }
 .cmp-grid .best{color:var(--green);font-weight:800}
+.cmp-grid .tt{font-size:.68rem;color:var(--ink-3);font-weight:500;margin-left:5px}
+.cmp-grid .best .tt{color:var(--green);opacity:.75}
+.cmp-grid .glopp{font-size:.68rem;color:var(--ink-3);margin-right:6px}
 .cmp-player{padding:14px 10px 10px;vertical-align:bottom}
 .cmp-player img{width:64px;height:47px;object-fit:cover;object-position:top;border-radius:8px;background:#edf0f2;display:block;margin:0 auto 6px}
 .cmp-player img.logo-img{object-fit:contain;background:#fff;border:1px solid var(--line-soft)}
@@ -408,6 +423,19 @@ function detailHTML(p){
     :'<div class="nnone" style="padding:6px 0">No recent news for this player.</div>';
   const delta=(p.proj26!=null&&p.pts25!=null&&p.gp25)?p.proj26-p.pts25:null;
   const dHtml=delta==null?'':`<div class="ss"><b class="num ${delta>=0?'delta-up':'delta-dn'}">${delta>=0?'+':''}${fmt1(delta)}</b><span>Proj vs 2025</span></div>`;
+  const glTable=(log,season)=>{
+    if(!log||!log.length)return `<div class="glbox"><div class="dtitle">${season} Game Log</div><div class="glnone">No games played in ${season}.</div></div>`;
+    const tot=log.reduce((s,g)=>s+g[1],0);
+    const avg=tot/log.length;
+    const rows=log.map(g=>{
+      const cls=g[1]>=avg+5?'hi':(g[1]<=avg-5?'lo':'');
+      return `<tr class="${cls}"><td class="num">Wk ${g[0]}</td><td class="opp">${g[2]||''}</td><td class="pts num">${g[1].toFixed(1)}</td></tr>`;
+    }).join('');
+    return `<div class="glbox"><div class="dtitle">${season} Game Log <span style="font-weight:500;text-transform:none;letter-spacing:0">(PPR)</span></div>
+      <table class="gl"><thead><tr><th>Week</th><th>Opp</th><th>FPTS</th></tr></thead>
+      <tbody>${rows}</tbody>
+      <tfoot><tr><td colspan="2">${log.length} games · avg ${ (tot/log.length).toFixed(1)}</td><td class="num">${tot.toFixed(1)}</td></tr></tfoot></table></div>`;
+  };
   return `<tr class="detail"><td colspan="12"><div class="dwrap">
     <div class="dnews"><div class="dtitle">Recent News</div>${newsList}</div>
     <div class="dside">
@@ -421,6 +449,7 @@ function detailHTML(p){
       </div>
       ${p.outlook?`<div class="dtitle">2026 Outlook</div><div class="outlook">${esc(p.outlook)}</div>`:''}
     </div>
+    <div class="dlogs">${glTable(p.g25,2025)}${glTable(p.g24,2024)}</div>
   </div></td></tr>`;
 }
 
@@ -542,6 +571,7 @@ function bestMark(vals,low){
   const best=low?Math.min(...nums):Math.max(...nums);
   return vals.map(v=>v!=null&&v===best);
 }
+const gamesOf=p=>state.cmpView==='25'?(p.gp25||null):17;
 function statRow(label,key,low,ps){
   let vals,cells;
   if(key.includes('/')){
@@ -554,10 +584,16 @@ function statRow(label,key,low,ps){
       return `<td class="num ${mk[i]?'best':''}">${fmtStat(va)??0} / ${fmtStat(vb)??0}</td>`;
     });
   }else{
-    vals=ps.map(p=>rawOf(p)[key]??null);
+    // per-game true average first (stat ÷ games actually played), season total second
+    const avgs=ps.map(p=>{const v=rawOf(p)[key],g=gamesOf(p);return(v==null||!g)?null:v/g;});
+    vals=avgs;
     if(vals.every(v=>v==null))return'';
     const mk=bestMark(vals,low);
-    cells=ps.map((p,i)=>vals[i]==null?'<td><span class="dash">--</span></td>':`<td class="num ${mk[i]?'best':''}">${fmtStat(vals[i])}</td>`);
+    cells=ps.map((p,i)=>{
+      if(vals[i]==null)return'<td><span class="dash">--</span></td>';
+      const tot=rawOf(p)[key];
+      return `<td class="num ${mk[i]?'best':''}">${vals[i].toFixed(1)}<span class="tt">${fmtStat(tot)} tot</span></td>`;
+    });
   }
   if(vals.every(v=>v==null))return'';
   return `<tr><td class="lbl">${label}</td>${cells.join('')}</tr>`;
@@ -581,10 +617,10 @@ function buildModal(){
   const nsec=ps.length+1;
   const fantasy=
     `<tr class="sec"><td colspan="${nsec}">Fantasy</td></tr>`
-    +summaryRow('2026 Proj FPTS',p=>p.proj26,ps)
     +summaryRow('2026 Proj Avg',p=>p.projAvg26,ps)
-    +summaryRow('2025 FPTS',p=>p.gp25?p.pts25:null,ps)
+    +summaryRow('2026 Proj FPTS',p=>p.proj26,ps)
     +summaryRow('2025 True Avg',p=>p.gp25?p.avg25:null,ps)
+    +summaryRow('2025 FPTS',p=>p.gp25?p.pts25:null,ps)
     +summaryRow('2025 Games Played',p=>p.gp25,ps,{fmt:v=>v+' / 17'})
     +summaryRow('% Rostered',p=>p.pctOwned,ps,{fmt:v=>v.toFixed(1)+'%'})
     +summaryRow('% Started',p=>p.pctStarted,ps,{fmt:v=>v.toFixed(1)+'%'})
@@ -594,9 +630,28 @@ function buildModal(){
   const yr=state.cmpView==='25'?'2025':'2026 Projected';
   const secs=SECTIONS.map(([title,rows])=>{
     const body=rows.map(([l,k,low])=>statRow(l,k,low,ps)).join('');
-    return body?`<tr class="sec"><td colspan="${nsec}">${title} — ${yr}</td></tr>`+body:'';
+    return body?`<tr class="sec"><td colspan="${nsec}">${title} — ${yr} <span style="font-weight:500;text-transform:none;letter-spacing:0">· per-game avg (season total)</span></td></tr>`+body:'';
   }).join('');
-  mb.innerHTML=`<table class="cmp-grid"><thead>${head}</thead><tbody>${fantasy}${secs}</tbody></table>`;
+  let gls='';
+  if(ps.length===2){
+    const glSec=(key,season)=>{
+      const [a,b]=ps;
+      if((!a[key]||!a[key].length)&&(!b[key]||!b[key].length))return'';
+      const m1=new Map((a[key]||[]).map(g=>[g[0],g])),m2=new Map((b[key]||[]).map(g=>[g[0],g]));
+      const weeks=[...new Set([...m1.keys(),...m2.keys()])].sort((x,y)=>x-y);
+      const rows=weeks.map(w=>{
+        const g1=m1.get(w),g2=m2.get(w);
+        const p1=g1?g1[1]:null,p2=g2?g2[1]:null;
+        const b1=p1!=null&&(p2==null||p1>=p2),b2=p2!=null&&(p1==null||p2>=p1);
+        const cell=(g,best)=>g?`<td class="num ${best?'best':''}"><span class="glopp">${g[2]||''}</span>${g[1].toFixed(1)}</td>`:'<td><span class="dash">--</span></td>';
+        return `<tr><td class="lbl">Wk ${w}</td>${cell(g1,b1)}${cell(g2,b2)}</tr>`;
+      }).join('');
+      const tot=k=>ps.map(p=>{const l=p[k]||[];if(!l.length)return'<td><span class="dash">--</span></td>';const t=l.reduce((s,g)=>s+g[1],0);return `<td class="num"><b>${t.toFixed(1)}</b><span class="tt">${(t/l.length).toFixed(1)}/g</span></td>`;}).join('');
+      return `<tr class="sec"><td colspan="3">Game Log — ${season} <span style="font-weight:500;text-transform:none;letter-spacing:0">· PPR points</span></td></tr>${rows}<tr><td class="lbl">Total</td>${tot(key)}</tr>`;
+    };
+    gls=glSec('g25',2025)+glSec('g24',2024);
+  }
+  mb.innerHTML=`<table class="cmp-grid"><thead>${head}</thead><tbody>${fantasy}${secs}${gls}</tbody></table>`;
 }
 function openModal(){
   if(state.cmp.length<2)return;
