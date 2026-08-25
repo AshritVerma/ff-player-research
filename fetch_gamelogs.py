@@ -1,5 +1,8 @@
-"""Fetch weekly PPR game logs (2025 + 2024) for all players in ff-dashboard-data.json."""
-import json, urllib.request, time
+"""Fetch weekly PPR game logs (2025 + 2024) for all players in data.json."""
+import json, os, urllib.request, time
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+DATA = os.path.join(HERE, "data.json")
 
 BASE = "https://lm-api-reads.fantasy.espn.com/apis/v3/games/ffl/seasons"
 UA = {"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"}
@@ -43,7 +46,7 @@ def weekly(season, ids):
     return out
 
 def main():
-    data = json.load(open("/home/user/workspace/ff-dashboard-data.json"))
+    data = json.load(open(DATA))
     ids = [p["id"] for p in data["players"]]
     for season, key in ((2025, "g25"), (2024, "g24")):
         sched = schedules(season)
@@ -59,7 +62,7 @@ def main():
                 out.append([r["w"], r["pts"], (("" if opp[1] else "@") + opp[0]) if opp else ""])
             p[key] = out
         print(season, "logs:", sum(1 for p in data["players"] if p[key]))
-    json.dump(data, open("/home/user/workspace/ff-dashboard-data.json", "w"))
+    json.dump(data, open(DATA, "w"))
     print("saved")
 
 if __name__ == "__main__":

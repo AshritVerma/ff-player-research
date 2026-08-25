@@ -1,4 +1,10 @@
-import json, time, concurrent.futures, urllib.request
+import json, os, time, concurrent.futures, urllib.request
+
+# Resolve paths next to this script so it runs anywhere, not just in the
+# original /home/user/workspace sandbox.
+HERE = os.path.dirname(os.path.abspath(__file__))
+DATA = os.path.join(HERE, "data.json")
+SOS  = os.path.join(HERE, "sos_map.json")
 
 UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/126.0 Safari/537.36"
 
@@ -91,10 +97,9 @@ for r in players:
     r.setdefault("adpRank", None)
 
 # strength of schedule from FantasyPros (sos_map.json: team abbrev -> pos -> 0-5)
-import os
 POSMAP = {"QB": "QB", "RB": "RB", "WR": "WR", "TE": "TE", "K": "K", "D/ST": "DST"}
-if os.path.exists("/home/user/workspace/sos_map.json"):
-    sos = json.load(open("/home/user/workspace/sos_map.json"))
+if os.path.exists(SOS):
+    sos = json.load(open(SOS))
     for r in players:
         m = sos.get(r["team"]); k = POSMAP.get(r["pos"])
         r["sos"] = m[k] if (m and k) else None
@@ -102,10 +107,19 @@ else:
     for r in players:
         r["sos"] = None
 
-out = {"generated": time.strftime("%Y-%m-%dT%H:%M:%S%z"), "players": players}
-with open("/home/user/workspace/ff-dashboard-data.json", "w") as f:
+# Preserve any other top-level keys already in data.json (sched26, oppRk, ...)
+# so a stats refresh does not wipe the schedule data the dashboard also reads.
+out = {}
+if os.path.exists(DATA):
+    try:
+        out = json.load(open(DATA))
+    except Exception:
+        out = {}
+out["generated"] = time.strftime("%Y-%m-%dT%H:%M:%S%z")
+out["players"] = players
+with open(DATA, "w") as f:
     json.dump(out, f)
-print("saved")
+print("saved", DATA)
 # sanity
 for r in players[:5]:
     print(r["name"], r["team"], r["pos"], r["proj26"], r["projAvg26"], r["pts25"], r["avg25"], r["gp25"], len(r["news"]))
