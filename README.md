@@ -1,4 +1,4 @@
-# Player Research — Boys Nation FF Connoisseurs
+# FF Player Research
 
 An ESPN-style fantasy football "Add Players" research dashboard for the 2026 season (PPR scoring), built as a single static page.
 
