@@ -82,9 +82,10 @@ print("news fetched for", sum(1 for v in news.values() if v), "players")
 for r in players:
     r["news"] = news.get(r["id"], [])
 
-# draft rank from ESPN ADP (average draft position across live mock/real drafts)
-withadp = sorted([r for r in players if r.get("adp")], key=lambda r: r["adp"])
-for i, r in enumerate(withadp):
+# draft rank = ESPN draft-board order (verified against a practice mock draft room:
+# the board lists players by overall PPR rank, densely renumbered 1..N)
+ranked = sorted([r for r in players if r.get("rank")], key=lambda r: r["rank"])
+for i, r in enumerate(ranked):
     r["adpRank"] = i + 1
 for r in players:
     r.setdefault("adpRank", None)
