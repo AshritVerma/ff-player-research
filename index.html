@@ -392,24 +392,27 @@ table.hist tr.mine td{background:#f0fbf3}
 table.hist tr.mine .tm{color:var(--green)}
 
 /* ---------- Board ---------- */
-.bwrap{overflow:auto;max-height:72vh}
-table.board{border-collapse:separate;border-spacing:6px;padding:10px}
+.bwrap{overflow-y:auto;overflow-x:hidden;max-height:76vh;padding:6px 8px 10px}
+body.boardwide .page{max-width:min(1900px,97vw)}
+table.board th{font-size:.62rem;padding:6px 4px;overflow:hidden;text-overflow:ellipsis}
+.limbox{min-width:0}
+table.board{border-collapse:collapse;table-layout:fixed;width:100%}
 table.board th{
   position:sticky;top:0;z-index:2;background:#fff;font-size:.66rem;font-weight:700;color:var(--ink-2);
   padding:6px 8px;white-space:nowrap;text-align:center;border-bottom:1px solid var(--line);
 }
-table.board td{vertical-align:top}
+table.board td{vertical-align:top;padding:3px}
 table.board .rnd{
   position:sticky;left:0;z-index:1;background:#fff;font-size:.66rem;font-weight:700;color:var(--ink-3);
   padding:0 6px;white-space:nowrap;
 }
 .bcell{
-  min-width:118px;max-width:150px;border:1px solid var(--line-soft);border-radius:6px;padding:6px 7px;
-  background:#fafbfc;line-height:1.25;
+  min-width:0;border:1px solid var(--line-soft);border-radius:6px;padding:5px 6px;
+  background:#fafbfc;line-height:1.22;overflow:hidden;
 }
 .bcell.empty{background:transparent;border-style:dashed;min-height:40px}
 .bcell .p{font-size:.62rem;color:var(--ink-3);font-weight:700;font-variant-numeric:tabular-nums}
-.bcell .n{font-size:.72rem;font-weight:700;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bcell .n{font-size:.7rem;font-weight:700;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .bcell .m{font-size:.62rem;color:var(--ink-3);font-weight:600}
 .bcell.QB{background:#eef4ff;border-color:#d6e4ff}
 .bcell.RB{background:#eefaf0;border-color:#d3f0da}
@@ -476,7 +479,7 @@ tr.p-row.flash td{animation:flashrow 1.2s ease}
 .bcell.clickable{cursor:pointer}
 .bcell.clickable:hover{border-color:var(--blue);box-shadow:0 0 0 2px rgba(6,104,208,.14)}
 /* roster limits row */
-.limbox{border:1px solid var(--line-soft);border-radius:6px;padding:6px 7px;background:#fff;min-width:118px}
+.limbox{border:1px solid var(--line-soft);border-radius:6px;padding:6px 7px;background:#fff}
 .limhead{font-size:.6rem;font-weight:700;color:var(--ink-3);margin-bottom:3px}
 .lim{display:inline-block;font-size:.6rem;font-weight:600;color:var(--ink-3);margin:0 6px 2px 0;white-space:nowrap}
 .lim b{color:var(--ink-2);font-weight:700}
@@ -739,6 +742,7 @@ function setView(v){
   document.querySelectorAll('#views [data-view]').forEach(b=>b.classList.toggle('on',b.dataset.view===v));
   document.getElementById('controls').classList.toggle('slim',v!=='players');
   document.body.classList.toggle('notplayers',v!=='players');
+  document.body.classList.toggle('boardwide',v==='board');
   document.getElementById('view-players').hidden=(v!=='players');
   document.getElementById('view-history').hidden=(v!=='history');
   document.getElementById('view-board').hidden=(v!=='board');
@@ -824,6 +828,7 @@ function fillLineup(picks){
   return out;
 }
 
+
 function renderBoard(){
   const el=document.getElementById('view-board');
   document.querySelectorAll('#boardseg [data-bv]').forEach(b=>b.classList.toggle('on',b.dataset.bv===state.boardView));
@@ -832,7 +837,11 @@ function renderBoard(){
   const prev=el.querySelector('.bwrap');
   const keep=prev?{t:prev.scrollTop,l:prev.scrollLeft}:null;
   const order=draftOrder();
-  const head=`<tr><th class="rnd"></th>${order.map(id=>`<th>${esc(teamName(id))}</th>`).join('')}</tr>`;
+  const head=`<tr><th class="rnd"></th>${order.map(id=>`<th title="${esc(teamName(id))}">${esc(teamName(id))}</th>`).join('')}</tr>`;
+  // the team columns must share what's left AFTER the round label, or the table
+  // is permanently 34px wider than its container and scrolls no matter what
+  const cols=`<colgroup><col style="width:34px">${
+    order.map(()=>`<col style="width:calc((100% - 34px)/${order.length})">`).join('')}</colgroup>`;
   let inner;
 
   if(state.boardView==='round'){
@@ -871,7 +880,7 @@ function renderBoard(){
     inner=rows.join('');
   }
 
-  el.innerHTML=`<div class="bwrap"><table class="board"><thead>${head}</thead><tbody>${inner}</tbody></table></div>`;
+  el.innerHTML=`<div class="bwrap"><table class="board">${cols}<thead>${head}</thead><tbody>${inner}</tbody></table></div>`;
   const now=el.querySelector('.bwrap');
   if(now&&keep){now.scrollTop=keep.t;now.scrollLeft=keep.l;}
 }
