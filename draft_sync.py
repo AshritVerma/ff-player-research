@@ -34,7 +34,9 @@ auth error and the page shows it.
 
 import argparse
 import base64
+import concurrent.futures
 import json
+import re
 import os
 import random
 import sys
@@ -212,6 +214,163 @@ def abbrev_of(name):
 
 
 INGEST = None
+
+
+
+class News:
+    """Aggregated player news, kept warm in the background.
+
+    Two sources, because neither is enough alone. ESPN has per-player history
+    and is what the baked-in snapshot already uses, so its links are preserved.
+    Rotowire's RSS carries only the last handful of items league-wide, but those
+    are the breaking ones -- a practice-field injury shows up there first.
+
+    FantasyPros is deliberately absent: it has no working public feed (their RSS
+    paths 404 or return empty, the API is 403) and the player pages render news
+    client-side, so the only way in would be driving a browser.
+    """
+
+    ESPN = ("https://site.web.api.espn.com/apis/fantasy/v2/games/ffl/news/"
+            "players?playerId=%d&limit=8")
+    ROTOWIRE = "https://www.rotowire.com/rss/news.php?sport=NFL"
+    PER_CYCLE = 25          # players refreshed each pass, so a full sweep is gentle
+
+    def __init__(self, data_path):
+        self.lock = threading.Lock()
+        self.items = {}
+        self.updated = None
+        self.cursor = 0
+        self.roster = []
+        try:
+            for p in json.load(open(data_path))["players"]:
+                self.roster.append((p["id"], norm_name(p["name"])))
+        except Exception:
+            pass
+
+    # ---- fetching -------------------------------------------------------
+    def _get(self, url, raw=False):
+        req = urllib.request.Request(url, headers={"User-Agent": UA})
+        with urllib.request.urlopen(req, timeout=20) as r:
+            body = r.read().decode("utf-8", "ignore")
+        return body if raw else json.loads(body)
+
+    def espn(self, pid):
+        out = []
+        try:
+            d = self._get(self.ESPN % pid)
+        except Exception:
+            return out
+        for f in (d.get("feed") or []):
+            head = (f.get("headline") or "").strip()
+            if not head:
+                continue
+            body = ""
+            for st in (f.get("story") or "", f.get("description") or ""):
+                if st:
+                    body = re.sub(r"<[^>]+>", "", st).strip()
+                    break
+            link = ""
+            try:
+                link = (((f.get("links") or {}).get("web") or {}).get("href") or "")
+            except Exception:
+                pass
+            out.append({"h": head, "d": body, "t": f.get("published") or "",
+                        "u": link, "s": "ESPN"})
+        return out
+
+    def rotowire(self):
+        """-> {normalised player name: [items]}"""
+        by_name = {}
+        try:
+            x = self._get(self.ROTOWIRE, raw=True)
+        except Exception:
+            return by_name
+
+        def tag(block, t):
+            m = re.search(r"<%s>(?:<!\[CDATA\[)?(.*?)(?:\]\]>)?</%s>" % (t, t), block, re.S)
+            return html_unescape(m.group(1)).strip() if m else ""
+
+        for block in re.findall(r"<item>(.*?)</item>", x, re.S):
+            title = tag(block, "title")
+            if ":" not in title:
+                continue
+            who, head = title.split(":", 1)
+            item = {
+                "h": head.strip(), "d": re.sub(r"<[^>]+>", "", tag(block, "description")).strip(),
+                "t": rfc822(tag(block, "pubDate")), "u": tag(block, "link").replace("//football", "/football"),
+                "s": "RotoWire",
+            }
+            by_name.setdefault(norm_name(who), []).append(item)
+        return by_name
+
+    # ---- merge ----------------------------------------------------------
+    @staticmethod
+    def merge(*lists):
+        seen, out = set(), []
+        for group in lists:
+            for it in group:
+                key = norm_name(it["h"])[:70]
+                if key in seen:
+                    continue
+                seen.add(key)
+                out.append(it)
+        out.sort(key=lambda i: i.get("t") or "", reverse=True)
+        return out[:10]
+
+    def cycle(self):
+        wire = self.rotowire()
+        batch = []
+        with self.lock:
+            n = len(self.roster)
+            if not n:
+                return
+            for i in range(self.PER_CYCLE):
+                batch.append(self.roster[(self.cursor + i) % n])
+            self.cursor = (self.cursor + self.PER_CYCLE) % n
+        fresh = {}
+        with concurrent.futures.ThreadPoolExecutor(max_workers=6) as ex:
+            for (pid, nm), got in zip(batch, ex.map(lambda b: self.espn(b[0]), batch)):
+                fresh[pid] = self.merge(wire.get(nm, []), got)
+        # anyone named in the wire feed gets it immediately, not on their turn
+        for pid, nm in self.roster:
+            if nm in wire and pid not in fresh:
+                with self.lock:
+                    fresh[pid] = self.merge(wire[nm], self.items.get(pid, []))
+        with self.lock:
+            self.items.update({k: v for k, v in fresh.items() if v})
+            self.updated = time.time()
+
+    def payload(self):
+        with self.lock:
+            return {"updated": self.updated, "count": len(self.items),
+                    "news": {str(k): v for k, v in self.items.items()}}
+
+
+def html_unescape(s):
+    import html as _h
+    return _h.unescape(s or "")
+
+
+def rfc822(s):
+    """RSS date -> the ISO-ish string the page already formats."""
+    try:
+        from email.utils import parsedate_to_datetime
+        return parsedate_to_datetime(s).strftime("%Y-%m-%dT%H:%M:%S")
+    except Exception:
+        return ""
+
+
+NEWS = None
+
+
+def news_loop(interval=90):
+    while True:
+        try:
+            if NEWS:
+                NEWS.cycle()
+        except Exception as e:
+            print("news cycle failed:", e, file=sys.stderr)
+        time.sleep(interval)
 
 
 # ----------------------------------------------------------------- espn client
@@ -401,6 +560,16 @@ class Handler(SimpleHTTPRequestHandler):
         # (Chrome blocks HTTPS -> local HTTP for fetch, XHR and images alike),
         # but it CAN navigate a window it opened. The bookmarklet keeps one
         # small window and re-navigates it here with each batch of picks.
+        if self.path.split("?")[0] == "/api/news":
+            body = json.dumps(NEWS.payload() if NEWS else {"news": {}}).encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self._cors()
+            self.end_headers()
+            self.wfile.write(body)
+            return
+
         if self.path.split("?")[0] == "/api/reset":
             if INGEST:
                 INGEST.reset()
@@ -610,8 +779,10 @@ def main():
     if os.path.exists(CONFIG):
         cfg = json.load(open(CONFIG))
 
-    global INGEST
+    global INGEST, NEWS
     INGEST = Ingest(os.path.join(HERE, "data.json"))
+    NEWS = News(os.path.join(HERE, "data.json"))
+    threading.Thread(target=news_loop, daemon=True).start()
 
     season = args.season or cfg.get("season") or 2026
     interval = args.interval or cfg.get("pollInterval") or 5

@@ -517,6 +517,37 @@ tr.p-row.flash td{animation:flashrow 1.2s ease}
 .pcard .glbox{margin-bottom:14px}
 .pcard .side-stats{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px}
 @media (max-width:820px){.pcard{left:14px;right:14px;width:auto;top:auto;height:60vh}}
+
+.ss{position:relative}
+.ssdelta{
+  display:block;font-style:normal;font-size:.58rem;font-weight:700;letter-spacing:.01em;
+  margin-top:-1px;margin-bottom:1px;
+}
+.ssdelta.delta-up{color:var(--green)}
+.ssdelta.delta-dn{color:var(--injury)}
+.ss-sos{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px}
+.ss-sos .soswrap{gap:5px}
+.ss-sos .sosnum{font-size:.85rem;min-width:0}
+.pcard .side-stats{grid-template-columns:1fr 1fr}
+
+tr.byerow td{background:var(--group-bg);color:var(--ink-3);font-style:italic}
+tr.byerow .opp{font-weight:700;font-style:normal;letter-spacing:.04em}
+.projcell{color:var(--ink-3);font-size:.72em}
+.projcell.over{color:var(--green)}
+.projcell.under{color:var(--injury)}
+
+tr.dnprow td{background:#fcfcfd;color:var(--ink-3)}
+tr.dnprow .pts{font-weight:700;font-size:.62rem;letter-spacing:.04em}
+
+.nscroll{max-height:260px;overflow-y:auto;padding-right:4px}
+.pcard .nscroll{max-height:300px}
+.nsrc{
+  display:inline-block;font-size:.54rem;font-weight:800;letter-spacing:.05em;text-transform:uppercase;
+  padding:1px 5px;border-radius:3px;margin-right:6px;vertical-align:1px;
+}
+.nsrc.espn{background:#eef4ff;color:#0554aa}
+.nsrc.rw{background:#fff1e6;color:#a4551a}
+.nsub{font-weight:500;text-transform:none;letter-spacing:0;color:var(--ink-3);font-size:.66rem}
 </style>
 </head>
 <body>
@@ -689,6 +720,8 @@ async function pollDraft(){
     LIVE.picks=[]; LIVE.byPlayer=new Map();
   }
   paintLive();
+  pullNews();
+  setInterval(pullNews,180000);   // every 3 minutes
 }
 
 function paintLive(){
@@ -892,6 +925,7 @@ function openPlayer(id){
   const p=byId(id);
   if(!p)return;
   const card=document.getElementById('pcard');
+  card.dataset.pid=p.id;
   const d=LIVE.byPlayer.get(p.id);
   document.getElementById('pc-id').innerHTML=`${headshot(p).replace(' class="hs"','').replace('class="hs logo-img"','class="logo-img"')}
     <div><div class="nm">${esc(p.name)}${ITAG[p.injuryStatus]?`<span class="itag">${ITAG[p.injuryStatus]}</span>`:''}</div>
@@ -900,14 +934,71 @@ function openPlayer(id){
     <div><b>${p.adpRank??'--'}</b><span>Draft RK</span></div>
     <div><b>${p.rank??'--'}</b><span>ESPN RK</span></div>
     <div><b>${p.adp??'--'}</b><span>ADP</span></div>
-    <div><b>${p.pctOwned!=null?p.pctOwned.toFixed(0)+'%':'--'}</b><span>%Rost</span></div>
-    <div><b>${p.sos!=null?(Math.round(p.sos*100)/100):'--'}</b><span>SOS</span></div>`;
+    <div><b>${p.pctOwned!=null?p.pctOwned.toFixed(0)+'%':'--'}</b><span>%Rost</span></div>`;
   const body=document.getElementById('pc-body');
   body.innerHTML=detailInner(p);
   body.scrollTop=0;
   card.hidden=false;
 }
 function closePlayerCard(){document.getElementById('pcard').hidden=true;}
+
+
+
+/* Back-to-back drafts: the helper drops the previous draft's picks by itself
+   when the room's league id changes, but a manual reset is here for the cases
+   it can't see -- a room re-run under the same id, or a helper left running
+   from something you have already finished. */
+function resetPicks(){
+  fetch('http://127.0.0.1:8787/api/reset',{cache:'no-store'})
+    .then(r=>{ if(!r.ok)throw new Error('HTTP '+r.status); return r.json(); })
+    .catch(err=>{
+      const tx=document.getElementById('livestat-txt');
+      const el=document.getElementById('livestat');
+      el.classList.remove('live');el.classList.add('err');
+      tx.textContent='reset failed — restart the helper';
+      el.title='The helper refused /api/reset ('+err.message+'). It is probably '
+        +'running an older version: quit it and let the app start it again.';
+      throw err;
+    })
+    .then(()=>{
+      LIVE.picks=[];LIVE.byPlayer=new Map();LIVE.seen=-1;
+      TICK.rendered.clear();
+      const row=document.getElementById('tk-row'); if(row)row.innerHTML='';
+      document.getElementById('ticker').hidden=true;
+      state.open.clear();
+      render();
+      if(state.view==='history')renderHistory();
+      if(state.view==='board')renderBoard();
+      pollDraft();
+    });
+}
+
+/* Live news. The baked-in snapshot is whatever data.json had at build time; the
+   helper keeps a fresher aggregate (ESPN + RotoWire) and this folds it in when
+   the helper is reachable. Offline, the snapshot still shows. */
+const NEWSFEED={updated:null,tries:0};
+async function pullNews(){
+  try{
+    const r=await fetch('http://127.0.0.1:8787/api/news',{cache:'no-store'});
+    if(!r.ok)throw new Error('HTTP '+r.status);
+    const d=await r.json();
+    const map=d.news||{};
+    let n=0;
+    DATA.forEach(p=>{
+      const fresh=map[String(p.id)];
+      if(fresh&&fresh.length){p.news=fresh;n++;}
+    });
+    NEWSFEED.updated=d.updated||null;
+    if(n){
+      render();
+      const card=document.getElementById('pcard');
+      if(card&&!card.hidden){
+        const open=card.dataset.pid;
+        if(open)openPlayer(+open);
+      }
+    }
+  }catch(e){/* helper not running: the snapshot stands */}
+}
 
 /* ---------------------------- Drafted ticker ----------------------------
    Newest pick on the left; scroll right to walk back through the draft.
@@ -1021,9 +1112,25 @@ function rowHTML(p,i){
   </tr>`;
 }
 
+
+/* 2026 projection against what the player actually did in 2025: green if the
+   projection is higher, red if lower, with the gap in small type underneath so
+   the trend is legible without a separate box for it. */
+function projBox(label,proj,prior,note){
+  if(proj==null)return `<div class="ss"><b class="num">--</b><span>${label}</span></div>`;
+  const d=(prior==null)?null:proj-prior;
+  const cls=d==null?'':(d>=0?'delta-up':'delta-dn');
+  const sign=d==null?'':(d>=0?'+':'');
+  return `<div class="ss"><b class="num ${cls}">${fmt1(proj)}</b>
+    ${d==null?'':`<em class="ssdelta ${cls}">${sign}${fmt1(d)} ${note}</em>`}
+    <span>${label}</span></div>`;
+}
+
 function detailInner(p){
-  const newsList=(p.news&&p.news.length)?p.news.map(n=>`
+  const news=(p.news||[]).slice(0,10);
+  const newsList=news.length?news.map(n=>`
     <div class="nitem">
+      ${n.s?`<span class="nsrc ${n.s==='RotoWire'?'rw':'espn'}">${esc(n.s)}</span>`:''}
       ${n.u?`<a href="${esc(n.u)}" target="_blank" rel="noopener">${esc(n.h)}</a>`:`<span style="font-weight:600;font-size:.78rem">${esc(n.h)}</span>`}
       ${n.d&&n.d!==n.h?`<p>${esc(n.d)}</p>`:''}
       <div class="ntime">${timeAgo(n.t)}</div>
@@ -1031,18 +1138,46 @@ function detailInner(p){
     :'<div class="nnone" style="padding:6px 0">No recent news for this player.</div>';
   const delta=(p.proj26!=null&&p.pts25!=null&&p.gp25)?p.proj26-p.pts25:null;
   const dHtml=delta==null?'':`<div class="ss"><b class="num ${delta>=0?'delta-up':'delta-dn'}">${delta>=0?'+':''}${fmt1(delta)}</b><span>Proj vs 2025</span></div>`;
-  const glTable=(log,season)=>{
+  const glTable=(log,season,bye,gp)=>{
     if(!log||!log.length)return `<div class="glbox"><div class="dtitle">${season} Game Log</div><div class="glnone">No games played in ${season}.</div></div>`;
     const tot=log.reduce((s,g)=>s+g[1],0);
-    const avg=tot/log.length;
-    const rows=log.map(g=>{
+    // The log carries a row for every week the team played, including weeks
+    // this player didn't. Dividing by all of them is not an average, it's a
+    // per-week rate that punishes injuries twice. Use games actually played.
+    const zeros=log.filter(g=>g[1]===0).length;
+    const played=(gp!=null&&gp>0&&gp<=log.length)?gp:Math.max(1,log.length-zeros);
+    const dnp=log.length-played;
+    const avg=tot/played;
+    const anyProj=log.some(g=>g[3]!=null);
+    // played weeks plus the bye, in week order, so a gap in the log reads as
+    // "didn't play" rather than being silently skipped
+    // The log has a row for every week the team played -- including weeks this
+    // player sat -- so the one week with no row at all is the bye. Derive it
+    // rather than depending on a field the data may not carry.
+    const have=new Set(log.map(g=>g[0]));
+    const lo=Math.min(...have), hi=Math.max(...have);
+    const gaps=[];
+    for(let w=lo;w<=hi;w++) if(!have.has(w)) gaps.push(w);
+    const byeWk=bye||(gaps.length===1?gaps[0]:null);
+    const items=log.map(g=>({w:g[0],g}));
+    if(byeWk)items.push({w:byeWk,bye:true});
+    items.sort((a,b)=>a.w-b.w);
+    const rows=items.map(it=>{
+      if(it.bye)return `<tr class="byerow"><td class="num">Wk ${it.w}</td><td class="opp">BYE</td><td class="pts num">--</td>${anyProj?'<td class="num">--</td>':''}</tr>`;
+      const g=it.g;
+      const out=(dnp>0&&g[1]===0);          // didn't play, not a zero-point game
+      if(out)return `<tr class="dnprow"><td class="num">Wk ${g[0]}</td><td class="opp">${g[2]||''}</td><td class="pts num">DNP</td>${anyProj?'<td class="num">--</td>':''}</tr>`;
       const cls=g[1]>=avg+5?'hi':(g[1]<=avg-5?'lo':'');
-      return `<tr class="${cls}"><td class="num">Wk ${g[0]}</td><td class="opp">${g[2]||''}</td><td class="pts num">${g[1].toFixed(1)}</td></tr>`;
+      const pr=g[3];
+      const beat=pr!=null?(g[1]>=pr?'over':'under'):'';
+      return `<tr class="${cls}"><td class="num">Wk ${g[0]}</td><td class="opp">${g[2]||''}</td>
+        <td class="pts num">${g[1].toFixed(1)}</td>
+        ${anyProj?`<td class="num projcell ${beat}">${pr!=null?pr.toFixed(1):'--'}</td>`:''}</tr>`;
     }).join('');
     return `<div class="glbox"><div class="dtitle">${season} Game Log <span style="font-weight:500;text-transform:none;letter-spacing:0">(PPR)</span></div>
-      <table class="gl"><thead><tr><th>Week</th><th>Opp</th><th>FPTS</th></tr></thead>
+      <table class="gl"><thead><tr><th>Week</th><th>Opp</th><th>FPTS</th>${anyProj?'<th>Proj</th>':''}</tr></thead>
       <tbody>${rows}</tbody>
-      <tfoot><tr><td colspan="2">${log.length} games · avg ${ (tot/log.length).toFixed(1)}</td><td class="num">${tot.toFixed(1)}</td></tr></tfoot></table></div>`;
+      <tfoot><tr><td colspan="2">${played} games played · true avg ${avg.toFixed(1)}${dnp>0?` · ${dnp} DNP`:''}</td><td class="num">${tot.toFixed(1)}</td>${anyProj?'<td></td>':''}</tr></tfoot></table></div>`;
   };
   const schedBox=()=>{
     const sch=(EXTRA.sched26||{})[p.team];
@@ -1062,19 +1197,19 @@ function detailInner(p){
       <div class="schedkey"><span><i style="background:rgba(46,125,50,.55)"></i>Easy matchup</span><span><i style="background:rgba(204,0,0,.45)"></i>Tough matchup</span><span>Per FantasyPros points-allowed rank (1 = most FPTS allowed to ${esc(p.pos)})</span></div></div>`;
   };
   return `<div class="dwrap">
-    <div class="dnews"><div class="dtitle">Recent News</div>${newsList}</div>
+    <div class="dnews"><div class="dtitle">Recent News <span class="nsub" id="nsub"></span></div><div class="nscroll">${newsList}</div></div>
     <div class="dside">
       <div class="side-stats">
-        <div class="ss"><b class="num">${fmt1(p.proj26)??'--'}</b><span>2026 Proj FPTS</span></div>
-        <div class="ss"><b class="num">${fmt1(p.projAvg26)??'--'}</b><span>2026 Proj Avg</span></div>
+        ${projBox('2026 Proj FPTS',p.proj26,p.gp25?p.pts25:null,'vs 2025')}
+        ${projBox('2026 Proj Avg',p.projAvg26,p.gp25?p.avg25:null,'vs 2025 avg')}
         <div class="ss"><b class="num">${p.gp25?fmt1(p.pts25):'--'}</b><span>2025 FPTS</span></div>
         <div class="ss"><b class="num">${p.gp25?fmt1(p.avg25):'--'}</b><span>2025 True Avg</span></div>
         <div class="ss"><b class="num">${p.gp25!=null?p.gp25+' / 17':'--'}</b><span>2025 Games</span></div>
-        ${dHtml||`<div class="ss"><b class="num">${p.pctStarted!=null?p.pctStarted.toFixed(1)+'%':'--'}</b><span>%Started</span></div>`}
+        <div class="ss ss-sos">${sosCell(p)}<span>2026 SOS</span></div>
       </div>
       ${p.outlook?`<div class="dtitle">2026 Outlook</div><div class="outlook">${esc(p.outlook)}</div>`:''}
     </div>
-    <div class="dlogs">${schedBox()}${glTable(p.g25,2025)}${glTable(p.g24,2024)}</div>
+    <div class="dlogs">${schedBox()}${glTable(p.g25,2025,p.bye25,p.gp25)}${glTable(p.g24,2024,p.bye24,null)}</div>
   </div>`;
 }
 function detailHTML(p){
