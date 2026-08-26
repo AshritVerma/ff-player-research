@@ -115,6 +115,8 @@ class Ingest:
         self.updated = None
         self.draft_id = None     # which draft these picks belong to
         self.started = None
+        self.team_count = None   # exact size, looked up from the league
+        self.league_teams = []
         self.by_name = {}
         try:
             for p in json.load(open(data_path))["players"]:
@@ -137,6 +139,44 @@ class Ingest:
             self.draft_id = draft_id
             self.started = time.time()
             self.updated = time.time()
+            self.team_count = None
+            self.league_teams = []
+        if draft_id:
+            threading.Thread(target=self.lookup_league, args=(draft_id,), daemon=True).start()
+
+    def lookup_league(self, draft_id):
+        """How many teams are in this draft.
+
+        It cannot be inferred from the picks alone until round 1 finishes -- the
+        highest pick number seen so far is only a lower bound, so an 8-team and a
+        12-team draft look identical for the first eight picks. The room reports
+        its league id, and that league knows its own size, so ask.
+        """
+        cfg = {}
+        if os.path.exists(CONFIG):
+            try:
+                cfg = json.load(open(CONFIG))
+            except Exception:
+                pass
+        try:
+            c = Espn(int(draft_id), cfg.get("season") or 2026,
+                     cfg.get("espn_s2"), cfg.get("SWID"))
+            d = c._get(c.league_url(["mTeam"]))
+            teams = d.get("teams") or []
+            names = []
+            for t in teams:
+                nm = t.get("name") or " ".join(
+                    x for x in (t.get("location"), t.get("nickname")) if x).strip()
+                names.append({"id": t.get("id"), "name": nm or ("Team %s" % t.get("id")),
+                              "abbrev": t.get("abbrev") or ""})
+            if names:
+                with self.lock:
+                    if self.draft_id == draft_id:
+                        self.team_count = len(names)
+                        self.league_teams = names
+                print("league %s has %d teams" % (draft_id, len(names)))
+        except Exception as e:
+            print("league size lookup failed for %s: %s" % (draft_id, e), file=sys.stderr)
 
     def add(self, rows, draft_id=None):
         """Any POST -- even an empty one -- is a heartbeat proving the draft room
@@ -152,9 +192,13 @@ class Ingest:
             self.reset(draft_id)
         added = 0
         with self.lock:
-            if draft_id and not self.draft_id:
+            first = draft_id and not self.draft_id
+            if first:
                 self.draft_id = draft_id
                 self.started = self.started or time.time()
+        if first:
+            threading.Thread(target=self.lookup_league, args=(draft_id,), daemon=True).start()
+        with self.lock:
             for r in rows:
                 try:
                     rnd, pk = int(r["round"]), int(r["pick"])
@@ -671,6 +715,7 @@ def merged():
     out.update({
         "ok": True, "status": "live", "source": "room",
         "draftId": INGEST.draft_id,
+        "teamCount": INGEST.team_count,
         "message": base.get("message") or "",
         "picks": picks, "teams": teams,
         "players": {**(base.get("players") or {}), **players},

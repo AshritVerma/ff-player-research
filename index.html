@@ -58,6 +58,12 @@ body{
   width:100%;padding:8px 10px 8px 32px;border:1px solid var(--line);
   border-radius:6px;font:inherit;font-size:.8125rem;outline:none;background:#fbfcfd;
 }
+.qx{position:absolute;right:6px;top:50%;transform:translateY(-50%);width:20px;height:20px;
+  border:0;border-radius:50%;background:var(--ink-4,#e3e6ea);color:var(--ink-2,#555);
+  font-size:15px;line-height:18px;cursor:pointer;padding:0;display:flex;
+  align-items:center;justify-content:center}
+.qx:hover{background:#d0d5dc;color:#111}
+.qx[hidden]{display:none}
 .search input:focus{border-color:var(--blue);background:#fff;box-shadow:0 0 0 3px rgba(6,104,208,.12)}
 .tabs{display:flex;gap:2px;background:var(--line-soft);border-radius:6px;padding:3px}
 .tabs button{
@@ -646,6 +652,7 @@ tr.pickmark.now span{
       <div class="search">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.8-3.8"/></svg>
         <input id="q" type="text" placeholder="Player name or team…" autocomplete="off">
+        <button id="q-clear" class="qx" type="button" aria-label="Clear search" hidden>&times;</button>
       </div>
       <div class="tabs" id="tabs"></div>
       <div class="count num" id="count"></div>
@@ -729,7 +736,7 @@ const HELPER='http://127.0.0.1:8787/api/draft';
 const STALE_AFTER=20;                    // seconds before we stop trusting it
 const LIVE={
   on:false, reachable:false, status:'off', message:'', age:null,
-  picks:[], teams:[], players:{},
+  picks:[], teams:[], players:{}, teamCount:null,
   byPlayer:new Map(), teamById:new Map(), timer:null, seen:-1,
 };
 
@@ -759,6 +766,7 @@ async function pollDraft(){
     LIVE.reachable=true;
     LIVE.status=d.status||'error'; LIVE.message=d.message||''; LIVE.age=d.age;
     LIVE.picks=d.picks||[]; LIVE.teams=d.teams||[]; LIVE.players=d.players||{};
+    LIVE.teamCount=d.teamCount||null;
     LIVE.byPlayer=new Map(LIVE.picks.map(p=>[p.playerId,p]));
     LIVE.teamById=new Map(LIVE.teams.map(t=>[t.id,t]));
   }catch(e){
@@ -767,8 +775,6 @@ async function pollDraft(){
     LIVE.picks=[]; LIVE.byPlayer=new Map();
   }
   paintLive();
-  pullNews();
-  setInterval(pullNews,180000);   // every 3 minutes
 }
 
 function paintLive(){
@@ -786,9 +792,11 @@ function paintLive(){
   else if(LIVE.status==='complete'){txt=`draft complete · ${LIVE.picks.length} picks`;}
   else{
     const mine=myPicks(1)[0];
-    if(mine&&mine.away===0){el.classList.add('live');txt='YOU ARE ON THE CLOCK';}
-    else if(mine){el.classList.add('live');txt=`${LIVE.picks.length} picks · you in ${mine.away}`;}
-    else{el.classList.add('live');txt=`${LIVE.picks.length} picks · synced ${Math.round(LIVE.age||0)}s ago`;}
+    el.classList.add('live');
+    if(mine&&mine.away===0)txt='YOU ARE ON THE CLOCK';
+    else if(mine)txt=`${LIVE.picks.length} picks · you in ${mine.away}`;
+    else if(state.myTeam&&!teamCount())txt=`${LIVE.picks.length} picks · after round 1`;
+    else txt=`${LIVE.picks.length} picks · synced ${Math.round(LIVE.age||0)}s ago`;
   }
   tx.textContent=txt;
   el.title=LIVE.message||txt;
@@ -987,7 +995,7 @@ function renderBoard(){
 
 /* A player is a player wherever you meet them: clicking one in the pick
    history or on the board takes you to their row and opens it. */
-function openPlayer(id){
+function openPlayer(id,keepScroll){
   const p=byId(id);
   if(!p)return;
   const card=document.getElementById('pcard');
@@ -1002,8 +1010,9 @@ function openPlayer(id){
     <div><b>${p.adp??'--'}</b><span>ADP</span></div>
     <div><b>${p.pctOwned!=null?p.pctOwned.toFixed(0)+'%':'--'}</b><span>%Rost</span></div>`;
   const body=document.getElementById('pc-body');
+  const keep=keepScroll?body.scrollTop:0;
   body.innerHTML=detailInner(p);
-  body.scrollTop=0;
+  body.scrollTop=keep;
   card.hidden=false;
 }
 function closePlayerCard(){document.getElementById('pcard').hidden=true;}
@@ -1042,25 +1051,30 @@ function resetPicks(){
 /* Live news. The baked-in snapshot is whatever data.json had at build time; the
    helper keeps a fresher aggregate (ESPN + RotoWire) and this folds it in when
    the helper is reachable. Offline, the snapshot still shows. */
-const NEWSFEED={updated:null,tries:0};
+const NEWSFEED={updated:null,seen:null,tries:0};
 async function pullNews(){
   try{
     const r=await fetch('http://127.0.0.1:8787/api/news',{cache:'no-store'});
     if(!r.ok)throw new Error('HTTP '+r.status);
     const d=await r.json();
+    // Nothing new since the last pull: leave the DOM alone. Re-rendering here
+    // is what used to scroll an open player card back to the top mid-read.
+    const stamp=d.updated||null;
+    if(NEWSFEED.seen&&stamp===NEWSFEED.seen)return;
+    NEWSFEED.seen=stamp;
     const map=d.news||{};
     let n=0;
     DATA.forEach(p=>{
       const fresh=map[String(p.id)];
       if(fresh&&fresh.length){p.news=fresh;n++;}
     });
-    NEWSFEED.updated=d.updated||null;
+    NEWSFEED.updated=stamp;
     if(n){
       render();
       const card=document.getElementById('pcard');
       if(card&&!card.hidden){
         const open=card.dataset.pid;
-        if(open)openPlayer(+open);
+        if(open)openPlayer(+open,true);   // keep where they were reading
       }
     }
   }catch(e){/* helper not running: the snapshot stands */}
@@ -1164,26 +1178,45 @@ const CHECK='<svg width="11" height="11" viewBox="0 0 12 12"><path d="M2 6.5 5 9
    the next pick until it's yours; the count of picks in between is how many
    players come off the board first -- so the marker goes after that many
    still-available players in the current sort. */
-function snakeTeamAt(overall,order){
-  const n=order.length;
-  if(!n)return null;
-  const r=Math.ceil(overall/n);
-  let i=(overall-1)%n;
-  if(r%2===0)i=n-1-i;
-  return order[i];
+/* How many teams are in this draft.
+
+   It can't be inferred from the picks until round 1 ends: after six picks an
+   8-team and a 12-team draft look identical, and guessing low would place every
+   marker wrong. The helper looks the league up and reports teamCount; failing
+   that, the highest pick number in round 1 is exact once round 2 has started.
+   Until one of those is true, no markers. */
+function teamCount(){
+  if(LIVE.teamCount)return LIVE.teamCount;
+  const picks=LIVE.picks;
+  if(!picks.length)return 0;
+  if(Math.max(...picks.map(p=>p.round||1))<2)return 0;
+  const r1=picks.filter(p=>p.round===1).map(p=>p.roundPick||0);
+  return r1.length?Math.max(...r1):0;
 }
+
+/* Your slot in the order, from any pick you've already made: in an odd round
+   the pick number IS the slot; even rounds run backwards. */
+function mySlot(n){
+  if(!n||!state.myTeam)return null;
+  const mine=LIVE.picks.filter(p=>String(p.teamId)===String(state.myTeam));
+  if(!mine.length)return null;
+  const p=mine[0];
+  const slot=(p.round%2===1)?p.roundPick:(n+1-p.roundPick);
+  return (slot>=1&&slot<=n)?slot:null;
+}
+
 function myPicks(limit){
-  if(!LIVE.on||!state.myTeam||!LIVE.picks.length)return [];
-  const order=draftOrder();
-  const n=order.length;
-  if(!n)return [];
+  if(!LIVE.on||!state.myTeam)return [];
+  const n=teamCount();
+  const slot=mySlot(n);
+  if(!n||!slot)return [];
   const made=LIVE.picks.length;
   const out=[];
-  for(let o=made+1;o<=n*18&&out.length<(limit||12);o++){
-    if(String(snakeTeamAt(o,order))!==String(state.myTeam))continue;
-    const r=Math.ceil(o/n);
-    const i=(o-1)%n;
-    out.push({overall:o,away:o-(made+1),round:r,slot:(r%2===0)?(n-i):(i+1)});
+  for(let r=1;r<=18&&out.length<(limit||12);r++){
+    const rp=(r%2===1)?slot:(n+1-slot);
+    const o=(r-1)*n+rp;
+    if(o<=made)continue;
+    out.push({overall:o,away:o-(made+1),round:r,slot:rp});
   }
   return out;
 }
@@ -1268,7 +1301,7 @@ function depthChart(p){
       <div><span>HC</span><b>${info.hc?esc(info.hc):'--'}</b></div>
       <div><span>OC</span><b>${info.oc?esc(info.oc):'--'}</b></div>
     </div>
-    ${grp('WR','WR',3)}${grp('RB','RB',2)}${grp('TE','TE',2)}
+    ${grp('WR','WR',4)}${grp('RB','RB',3)}${grp('TE','TE',2)}
   </div>`;
 }
 
@@ -1436,7 +1469,16 @@ function init(data){
     tabs.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));
     render();
   });
-  document.getElementById('q').addEventListener('input',e=>{state.q=e.target.value.trim();render();});
+  const qEl=document.getElementById('q'), qx=document.getElementById('q-clear');
+  const syncQx=()=>{qx.hidden=!qEl.value;};
+  qEl.addEventListener('input',e=>{state.q=e.target.value.trim();syncQx();render();});
+  qEl.addEventListener('keydown',e=>{
+    if(e.key==='Escape'&&qEl.value){e.stopPropagation();qEl.value='';state.q='';syncQx();render();}
+  });
+  qx.addEventListener('click',()=>{qEl.value='';state.q='';syncQx();render();qEl.focus();});
+  syncQx();
+  pullNews();
+  setInterval(pullNews,180000);   // one timer, for the life of the page
   document.getElementById('cols').addEventListener('click',e=>{
     const th=e.target.closest('th.sortable');if(!th)return;
     const k=th.dataset.k;
