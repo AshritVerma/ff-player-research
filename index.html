@@ -542,8 +542,13 @@ function buildRosters(){
     if(!byTeam.has(pk.teamId))byTeam.set(pk.teamId,[]);
     byTeam.get(pk.teamId).push(pk);
   });
+  // ESPN team ids are not necessarily 1..N. If a pick names a team that wasn't
+  // in the teams payload, still show it rather than silently dropping the picks.
+  const known=new Set(LIVE.teams.map(t=>t.id));
+  const shown=LIVE.teams.concat(
+    [...byTeam.keys()].filter(id=>!known.has(id)).map(id=>({id,name:'Team '+id,abbrev:''})));
   const order=['QB','RB','WR','TE','K','D/ST','?'];
-  const cards=LIVE.teams.map(t=>{
+  const cards=shown.map(t=>{
     const picks=(byTeam.get(t.id)||[]).slice().sort((a,b)=>(a.overall||0)-(b.overall||0));
     const lis=picks.map(pk=>{
       const p=lookupPlayer(pk.playerId);
