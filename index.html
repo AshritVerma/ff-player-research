@@ -659,25 +659,30 @@ function buildModal(){
     const body=rows.map(([l,k,low])=>statRow(l,k,low,ps)).join('');
     return body?`<tr class="sec"><td colspan="${nsec}">${title} — ${yr} <span style="font-weight:500;text-transform:none;letter-spacing:0">· per-game avg (season total)</span></td></tr>`+body:'';
   }).join('');
-  let gls='';
-  if(ps.length===2){
-    const glSec=(key,season)=>{
-      const [a,b]=ps;
-      if((!a[key]||!a[key].length)&&(!b[key]||!b[key].length))return'';
-      const m1=new Map((a[key]||[]).map(g=>[g[0],g])),m2=new Map((b[key]||[]).map(g=>[g[0],g]));
-      const weeks=[...new Set([...m1.keys(),...m2.keys()])].sort((x,y)=>x-y);
-      const rows=weeks.map(w=>{
-        const g1=m1.get(w),g2=m2.get(w);
-        const p1=g1?g1[1]:null,p2=g2?g2[1]:null;
-        const b1=p1!=null&&(p2==null||p1>=p2),b2=p2!=null&&(p1==null||p2>=p1);
-        const cell=(g,best)=>g?`<td class="num ${best?'best':''}"><span class="glopp">${g[2]||''}</span>${g[1].toFixed(1)}</td>`:'<td><span class="dash">--</span></td>';
-        return `<tr><td class="lbl">Wk ${w}</td>${cell(g1,b1)}${cell(g2,b2)}</tr>`;
-      }).join('');
-      const tot=k=>ps.map(p=>{const l=p[k]||[];if(!l.length)return'<td><span class="dash">--</span></td>';const t=l.reduce((s,g)=>s+g[1],0);return `<td class="num"><b>${t.toFixed(1)}</b><span class="tt">${(t/l.length).toFixed(1)}/g</span></td>`;}).join('');
-      return `<tr class="sec"><td colspan="3">Game Log — ${season} <span style="font-weight:500;text-transform:none;letter-spacing:0">· PPR points</span></td></tr>${rows}<tr><td class="lbl">Total</td>${tot(key)}</tr>`;
-    };
-    gls=glSec('g25',2025)+glSec('g24',2024);
-  }
+  // Game logs render for every compared player (2-4). This used to be gated on
+  // ps.length===2 and destructured [a,b], so selecting a third player silently
+  // dropped both game-log sections.
+  const glSec=(key,season)=>{
+    const maps=ps.map(p=>new Map((p[key]||[]).map(g=>[g[0],g])));
+    if(maps.every(m=>m.size===0))return'';
+    const weeks=[...new Set(maps.flatMap(m=>[...m.keys()]))].sort((x,y)=>x-y);
+    const rows=weeks.map(w=>{
+      const gs=maps.map(m=>m.get(w)||null);
+      const mk=bestMark(gs.map(g=>g?g[1]:null),false);
+      const cells=gs.map((g,i)=>g
+        ?`<td class="num ${mk[i]?'best':''}"><span class="glopp">${g[2]||''}</span>${g[1].toFixed(1)}</td>`
+        :'<td><span class="dash">--</span></td>').join('');
+      return `<tr><td class="lbl">Wk ${w}</td>${cells}</tr>`;
+    }).join('');
+    const totals=ps.map(p=>{
+      const l=p[key]||[];
+      if(!l.length)return'<td><span class="dash">--</span></td>';
+      const t=l.reduce((s,g)=>s+g[1],0);
+      return `<td class="num"><b>${t.toFixed(1)}</b><span class="tt">${(t/l.length).toFixed(1)}/g</span></td>`;
+    }).join('');
+    return `<tr class="sec"><td colspan="${nsec}">Game Log — ${season} <span style="font-weight:500;text-transform:none;letter-spacing:0">· PPR points</span></td></tr>${rows}<tr><td class="lbl">Total</td>${totals}</tr>`;
+  };
+  const gls=glSec('g25',2025)+glSec('g24',2024);
   mb.innerHTML=`<table class="cmp-grid"><thead>${head}</thead><tbody>${fantasy}${secs}${gls}</tbody></table>`;
 }
 function openModal(){
