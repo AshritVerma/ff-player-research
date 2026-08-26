@@ -39,9 +39,19 @@ fi
 # ceremony. Launch it here instead, detached, and only if nothing is already
 # listening -- so double-clicking twice never starts two of them.
 start_helper() {
-  if curl -s -m 1 -o /dev/null "http://127.0.0.1:8787/api/draft"; then
-    echo "helper already running" >> "$LOG"
-    return
+  want="$(shasum -a 256 "$REPO/draft_sync.py" 2>/dev/null | cut -c1-12)"
+  have="$(curl -s -m 1 "http://127.0.0.1:8787/api/draft" 2>/dev/null \
+          | sed -n 's/.*"version": *"\([^"]*\)".*/\1/p')"
+  if [ -n "$have" ]; then
+    if [ "$have" = "$want" ]; then
+      echo "helper already running (v$have)" >> "$LOG"
+      return
+    fi
+    # An old process keeps answering after draft_sync.py changes, so new
+    # endpoints 404 against it. Replace it rather than leaving it in place.
+    echo "helper is v$have, want v$want -- restarting" >> "$LOG"
+    pkill -f "draft_sync.py" 2>/dev/null
+    sleep 1
   fi
   [ -f "$REPO/draft_sync.py" ] || { echo "no draft_sync.py" >> "$LOG"; return; }
   nohup /usr/bin/python3 "$REPO/draft_sync.py" --room-only >> "$LOG" 2>&1 &

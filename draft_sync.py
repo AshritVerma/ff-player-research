@@ -45,6 +45,22 @@ import urllib.request
 from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+
+
+def _self_version():
+    """Hash of this file. The launcher compares it against the running helper's
+    and restarts on a mismatch -- otherwise editing draft_sync.py does nothing
+    until someone remembers to kill the old process, which is exactly how a
+    reset button ends up 404ing against a helper from three versions ago."""
+    try:
+        import hashlib
+        with open(os.path.abspath(__file__), "rb") as f:
+            return hashlib.sha256(f.read()).hexdigest()[:12]
+    except Exception:
+        return "unknown"
+
+
+VERSION = _self_version()
 CONFIG = os.path.join(HERE, "draft_config.json")
 UA = ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
       "Chrome/126.0 Safari/537.36")
@@ -74,6 +90,7 @@ class State:
     def get(self):
         with self.lock:
             p = dict(self.payload)
+        p["version"] = VERSION
         p["age"] = None if not p.get("updated") else round(time.time() - p["updated"], 1)
         return p
 
@@ -466,6 +483,7 @@ def merged():
     """What the dashboard sees: the API result, overridden by the draft room
     whenever the room knows about more picks (always, for practice drafts)."""
     base = STATE.get()
+    base["version"] = VERSION
     if not INGEST:
         base["source"] = "api"
         return base
