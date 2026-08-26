@@ -552,7 +552,11 @@ def main():
                   message="Room mode - run the bookmarklet in your ESPN draft room")
         print("ROOM-ONLY MODE - picks come from the draft-room bookmarklet")
         print("Open bookmarklet.txt and follow the two lines at the top.")
-        srv = ThreadingHTTPServer(("127.0.0.1", args.port), Handler)
+        try:
+            srv = ThreadingHTTPServer(("127.0.0.1", args.port), Handler)
+        except OSError as e:
+            sys.exit("Port %d is already in use -- a helper is probably running "
+                     "already (%s). Nothing to do." % (args.port, e))
         print("Draft helper on http://127.0.0.1:%d" % args.port)
         try:
             srv.serve_forever()
@@ -581,7 +585,11 @@ def main():
 
     threading.Thread(target=poll_loop, args=(client, interval), daemon=True).start()
 
-    srv = ThreadingHTTPServer(("127.0.0.1", args.port), Handler)
+    try:
+        srv = ThreadingHTTPServer(("127.0.0.1", args.port), Handler)
+    except OSError as e:
+        sys.exit("Port %d is already in use -- a helper is probably running "
+                 "already (%s). Nothing to do." % (args.port, e))
     print("Draft helper on http://127.0.0.1:%d" % args.port)
     print("Open the dashboard and flip the Live Draft switch. Ctrl-C to stop.")
     print("Practice/mock draft? Also run bookmarklet.txt in the draft room -- "

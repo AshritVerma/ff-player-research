@@ -21,6 +21,16 @@ if [ "$1" = "--uninstall" ]; then
   exit 0
 fi
 
+# A helper started by hand already owns the port. The agent would fail to bind,
+# and KeepAlive would sit there restarting it forever -- so refuse instead.
+if curl -s -m 1 -o /dev/null http://127.0.0.1:8787/api/draft; then
+  if ! launchctl print "gui/$UID/$LABEL" >/dev/null 2>&1; then
+    echo "Something is already listening on 127.0.0.1:8787 -- probably a helper you" >&2
+    echo "started in Terminal. Quit it (Ctrl-C in that window), then run this again." >&2
+    exit 1
+  fi
+fi
+
 mkdir -p "$HOME/Library/LaunchAgents"
 cat > "$PLIST" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
