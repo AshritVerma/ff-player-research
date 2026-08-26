@@ -322,7 +322,7 @@ body.tray-open .page{padding-bottom:120px}
 .controls.slim .search,.controls.slim #tabs,.controls.slim #count{display:none}
 .controls.slim{display:none}
 /* players-only controls hide when the board or history is showing */
-body.notplayers #avail-btn,body.notplayers #rosters-btn{display:none}
+body.notplayers #avail-btn{display:none}
 
 tr.p-row.drafted{background:#fbfbfc}
 tr.p-row.drafted .pname{color:var(--ink-3);text-decoration:line-through;text-decoration-thickness:1px}
@@ -355,13 +355,13 @@ tr.p-row.drafted td:not(.l){opacity:.45}
 
 /* ---------- View tabs (Players / Pick History / Board) ---------- */
 .views{display:flex;align-items:center;gap:2px;padding:0 14px;border-bottom:1px solid var(--line);background:#fff;border-radius:var(--radius) var(--radius) 0 0}
-.views button{
+.views > button[data-view],.views > button#rosters-btn{
   appearance:none;border:0;background:none;font:inherit;font-size:.8125rem;font-weight:600;
   color:var(--ink-2);padding:11px 12px;cursor:pointer;border-bottom:3px solid transparent;
   margin-bottom:-1px;white-space:nowrap;
 }
-.views button:hover{color:var(--blue)}
-.views button.on{color:var(--ink);border-bottom-color:var(--green)}
+.views > button[data-view]:hover,.views > button#rosters-btn:hover{color:var(--blue)}
+.views > button[data-view].on,.views > button#rosters-btn.on{color:var(--ink);border-bottom-color:var(--green)}
 .views .vspacer{flex:1}
 .boardseg{display:flex;gap:2px;padding:6px 0}
 .boardseg button{
@@ -613,12 +613,12 @@ tr.pickmark span::before{content:'';width:6px;height:6px;border-radius:50%;backg
       <button class="on" data-view="players">Players</button>
       <button data-view="history">Pick History</button>
       <button data-view="board">Board</button>
+      <button id="rosters-btn" title="Every team's roster">Rosters</button>
       <div class="vspacer"></div>
       <div class="livewrap">
         <select class="livesel" id="myteam" title="Your team — used to mark where your next pick lands"><option value="">My team…</option></select>
         <button class="livebtn danger" id="reset-btn" title="Clear tracked picks and start a fresh draft">Reset picks</button>
         <button class="livebtn" id="avail-btn" title="Show only players still on the board">Hide drafted</button>
-        <button class="livebtn" id="rosters-btn" title="See every team's roster">Rosters &rsaquo;</button>
         <span class="livestat" id="livestat"><span class="dot"></span><span id="livestat-txt"></span></span>
         <label class="liveswitch" title="Track your ESPN draft live (needs draft_sync.py running)">
           <input type="checkbox" id="live-toggle">
@@ -819,7 +819,9 @@ function setLive(on){
    model you already have open on the other monitor.                      */
 function setView(v){
   state.view=v;
-  document.querySelectorAll('#views [data-view]').forEach(b=>b.classList.toggle('on',b.dataset.view===v));
+  document.querySelectorAll('#views [data-view]').forEach(b=>b.classList.toggle('on',
+    b.dataset.view===v&&!(v==='board'&&state.boardView==='roster')));
+  document.getElementById('rosters-btn').classList.toggle('on',v==='board'&&state.boardView==='roster');
   document.getElementById('controls').classList.toggle('slim',v!=='players');
   document.body.classList.toggle('notplayers',v!=='players');
   document.body.classList.toggle('boardwide',v==='board');
@@ -1620,7 +1622,6 @@ function initCompare(){
   // and a second place that showed the same thing as the board. It now just
   // takes you to Board -> Roster View, which is where rosters live.
   const goRosters=()=>{state.boardView='roster';setView('board');};
-  document.getElementById('rosters-btn').addEventListener('click',goRosters);
   document.getElementById('livestat').addEventListener('click',()=>{if(LIVE.on)goRosters();});
   // a vertical trackpad flick should walk the ticker sideways, not do nothing
   document.getElementById('tk-scroll').addEventListener('wheel',e=>{
@@ -1640,9 +1641,16 @@ function initCompare(){
   });
 
   document.getElementById('views').addEventListener('click',e=>{
-    const v=e.target.closest('[data-view]'); if(v){setView(v.dataset.view);return;}
+    const v=e.target.closest('[data-view]');
+    if(v){
+      // Board and Rosters are the same view in two modes, so the Board tab has
+      // to put it back into Round View or it can never look selected.
+      if(v.dataset.view==='board')state.boardView='round';
+      setView(v.dataset.view);return;
+    }
+    if(e.target.closest('#rosters-btn')){state.boardView='roster';setView('board');return;}
     const b=e.target.closest('[data-bv]');
-    if(b){state.boardView=b.dataset.bv;renderBoard();}
+    if(b){state.boardView=b.dataset.bv;setView('board');}
   });
 
   // two-click confirm rather than a modal: one stray click shouldn't wipe a
