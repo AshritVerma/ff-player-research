@@ -25,7 +25,8 @@ Select up to 4 players for a side-by-side compare with best values highlighted.
 | `fetch_espn.py` | Refresh stats, projections, ranks, ADP, news, SOS |
 | `fetch_gamelogs.py` | Add weekly PPR game logs (2024/2025) |
 | `build_standalone.py` | Bundle it all into the standalone file |
-| `draft_sync.py` | Live draft helper — polls ESPN, feeds the Live Draft switch |
+| `draft_sync.py` | Live draft helper — feeds the Live Draft switch |
+| `install_autostart.sh` | Optional: run the helper at login so it's always up |
 | `extension/` | Chrome extension — auto-runs in any ESPN draft room (the easy way) |
 | `draft_room_scraper.js` | Draft-room companion (source for the bookmarklet) |
 | `bookmarklet_url.txt` | The bookmarklet URL, one line — fallback if you'd rather not install |
@@ -72,10 +73,22 @@ The board can't read a private ESPN league on its own — the draft endpoint nee
 the `espn_s2` / `SWID` session cookies, and a browser page can't set cookie
 headers on a cross-site fetch. So a small local process does it:
 
+You shouldn't need to start it by hand. **The Desktop app starts it for you** —
+it checks whether anything is listening on `127.0.0.1:8787` and launches the
+helper detached if not, so double-clicking twice never gives you two of them.
+
+For always-on, install it as a login agent once:
+
 ```bash
-python3 draft_sync.py --demo    # simulated draft, no ESPN, no cookies — try it first
-python3 draft_sync.py           # your real draft
-python3 draft_sync.py --league 987654   # a mock draft's league id
+./install_autostart.sh              # runs at login, restarts if it dies
+./install_autostart.sh --uninstall
+```
+
+By hand, if you want a console to watch:
+
+```bash
+python3 draft_sync.py --room-only   # what you want in practice
+python3 draft_sync.py --demo        # simulated draft, no ESPN, no cookies
 ```
 
 For the real thing, copy `draft_config.example.json` to `draft_config.json` and

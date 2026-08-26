@@ -1,6 +1,7 @@
 *.pyc
 .DS_Store
 .asset_cache/
+.helper.log
 .launcher.log
 __pycache__/
 draft_config.json
