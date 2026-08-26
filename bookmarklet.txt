@@ -1,21 +1,12 @@
-FF Research — draft room companion
+FF Research - draft room companion
 ==================================
 
 1. Start the helper:   python3 draft_sync.py --room-only
-   (or plain `python3 draft_sync.py` for your real draft — it uses both sources)
+2. Chrome bookmark bar -> right-click -> Add page. Name it "FF Draft".
+   Paste the ENTIRE contents of bookmarklet_url.txt as the URL.
+   If Chrome strips the leading 'javascript:' when you paste, type it back in.
+3. Open the ESPN draft room, click the bookmark ONCE.
+   A small "FF Research sink" window opens - leave it open, park it in a corner.
+   A badge appears bottom-right; click the badge to stop.
 
-2. Chrome bookmark bar → right-click → Add page. Name it "FF Draft".
-   Paste EVERYTHING below the dashed line as the URL.
-   NOTE: if Chrome strips the leading `javascript:` when you paste, type those
-   ten characters back in by hand. It does this silently and the bookmark then
-   does nothing at all.
-
-3. Open your ESPN draft room and click the bookmark ONCE.
-   A small "FF Research sink" window opens — leave it open, shove it in a corner.
-   Chrome blocks an HTTPS page from reaching a local server directly, so that
-   window is how picks get through. A badge appears bottom-right; click it to stop.
-
-If Chrome blocks the popup, allow popups for espn.com and click the bookmark again.
-
-------------------------------------------------------------------
-javascript:(function%20()%20{%20var%20HELPER%20=%20'http://127.0.0.1:8787/api/ingest';%20var%20EVERY%20=%201500;%20%20%20%20%20%20%20%20%20%20//%20how%20often%20to%20read%20the%20room%20var%20BEAT%20=%205000;%20%20%20%20%20%20%20%20%20%20%20//%20ping%20the%20helper%20at%20least%20this%20often%20var%20MAXURL%20=%206000;%20if%20(window.__ffScraper)%20window.__ffScraper.stop();%20var%20seen%20=%20Object.create(null),%20sent%20=%200,%20queue%20=%20[],%20lastPing%20=%200,%20sink%20=%20null;%20var%20box%20=%20document.createElement('div');%20box.style.cssText%20=%20'position:fixed;z-index:2147483647;right:12px;bottom:12px;'%20+%20'background:#17181a;color:#fff;font:600%2012px/1.35%20-apple-system,Segoe%20UI,sans-serif;'%20+%20'padding:8px%2011px;border-radius:7px;box-shadow:0%204px%2014px%20rgba(0,0,0,.35);cursor:pointer';%20box.title%20=%20'Click%20to%20stop%20the%20FF%20Research%20companion';%20document.body.appendChild(box);%20function%20paint(msg,%20c)%20{%20box.innerHTML%20=%20'%3Cspan%20style=%22color:'%20+%20(c%20||%20'#4ade80')%20+%20'%22%3E%E2%97%8F%3C/span%3E%20FF%20Research%20%C2%B7%20'%20+%20msg;%20}%20function%20parse(li)%20{%20var%20t%20=%20(li.innerText%20||%20'').replace(/%20/g,%20'%20').trim();%20var%20m%20=%20t.match(/^([^%5C/%5Cn]+?)%5Cs*%5C/%5Cs*([A-Z]{2,4})%5Cs+([A-Z%5C/]+(?:%5Cs*,%5Cs*[A-Z%5C/]+)*)%5Cs*%5Cn%5Cs*R(%5Cd+)%5Cs*,%5Cs*P(%5Cd+)%5Cs*[-%E2%80%93]%5Cs*(.+)$/);%20if%20(!m)%20return%20null;%20return%20{%20name:%20m[1].trim(),%20nfl:%20m[2],%20pos:%20m[3].split(',')[0].trim(),%20round:%20+m[4],%20pick:%20+m[5],%20team:%20m[6].trim()%20};%20}%20function%20b64(o)%20{%20return%20btoa(unescape(encodeURIComponent(JSON.stringify(o))))%20.replace(/%5C+/g,%20'-').replace(/%5C//g,%20'_').replace(/=+$/,%20'');%20}%20function%20push(rows)%20{%20if%20(!sink%20||%20sink.closed)%20{%20paint('sink%20window%20closed%20%E2%80%94%20click%20the%20bookmark%20again',%20'#f87171');%20return%20false;%20}%20var%20url%20=%20HELPER%20+%20(rows.length%20?%20'?p='%20+%20b64(rows)%20:%20'?beat=1')%20+%20'&t='%20+%20Date.now();%20if%20(url.length%20%3E%20MAXURL)%20return%20false;%20try%20{%20sink.location.replace(url);%20}%20catch%20(e)%20{%20return%20false;%20}%20lastPing%20=%20Date.now();%20return%20true;%20}%20function%20flush()%20{%20if%20(queue.length)%20{%20var%20batch%20=%20queue.slice(0,%208);%20if%20(push(batch))%20{%20sent%20+=%20batch.length;%20queue%20=%20queue.slice(batch.length);%20}%20paint(sent%20+%20'%20picks%20sent'%20+%20(queue.length%20?%20'%20('%20+%20queue.length%20+%20'%20queued)'%20:%20''));%20}%20else%20if%20(Date.now()%20-%20lastPing%20%3E%20BEAT)%20{%20push([]);%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20//%20heartbeat:%20proves%20the%20room%20is%20still%20open%20paint(sent%20+%20'%20picks%20sent');%20}%20}%20function%20scan()%20{%20var%20rows%20=%20document.querySelectorAll('li.pick-message__container');%20if%20(!rows.length)%20rows%20=%20document.querySelectorAll('[class*=%22pick-message__container%22]');%20for%20(var%20i%20=%200;%20i%20%3C%20rows.length;%20i++)%20{%20var%20p%20=%20parse(rows[i]);%20if%20(!p)%20continue;%20var%20k%20=%20p.round%20+%20'.'%20+%20p.pick;%20if%20(seen[k])%20continue;%20seen[k]%20=%201;%20queue.push(p);%20}%20if%20(!rows.length)%20paint('no%20picks%20visible%20%E2%80%94%20is%20this%20the%20draft%20room?',%20'#facc15');%20flush();%20}%20sink%20=%20window.open(HELPER%20+%20'?beat=1',%20'ffsink',%20'width=280,height=150');%20if%20(!sink)%20{%20paint('popup%20blocked%20%E2%80%94%20allow%20popups%20for%20espn.com,%20then%20click%20again',%20'#f87171');%20return;%20}%20var%20timer%20=%20setInterval(scan,%20EVERY);%20window.__ffScraper%20=%20{%20stop:%20function%20()%20{%20clearInterval(timer);%20box.remove();%20try%20{%20if%20(sink%20&&%20!sink.closed)%20sink.close();%20}%20catch%20(e)%20{}%20window.__ffScraper%20=%20null;%20}%20};%20box.onclick%20=%20function%20()%20{%20window.__ffScraper.stop();%20};%20paint('starting%E2%80%A6',%20'#facc15');%20scan();%20})();
+The bookmarklet URL itself is in bookmarklet_url.txt (one line, no wrapping).
