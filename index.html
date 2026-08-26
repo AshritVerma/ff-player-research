@@ -569,6 +569,20 @@ tr.dnprow .pts{font-weight:700;font-size:.62rem;letter-spacing:.04em}
 .pcard .depth{padding:12px 0 4px}
 
 .dnpcell{color:var(--ink-3);font-size:.62rem;font-weight:700;letter-spacing:.04em}
+
+.livesel{
+  border:1px solid var(--line);background:#fff;border-radius:6px;padding:5px 7px;font:inherit;
+  font-size:.72rem;font-weight:600;color:var(--ink-2);max-width:150px;cursor:pointer;
+}
+.controls.slim #myteam{display:none}
+tr.pickmark td{padding:0;border:0;background:none}
+tr.pickmark span{
+  display:flex;align-items:center;gap:10px;margin:2px 0;padding:5px 14px;
+  background:linear-gradient(90deg,rgba(10,125,51,.14),rgba(10,125,51,.03));
+  border-top:2px solid var(--green);border-bottom:1px solid rgba(10,125,51,.25);
+  font-size:.68rem;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--green);
+}
+tr.pickmark span::before{content:'';width:6px;height:6px;border-radius:50%;background:var(--green);flex-shrink:0}
 </style>
 </head>
 <body>
@@ -601,6 +615,7 @@ tr.dnprow .pts{font-weight:700;font-size:.62rem;letter-spacing:.04em}
       <button data-view="board">Board</button>
       <div class="vspacer"></div>
       <div class="livewrap">
+        <select class="livesel" id="myteam" title="Your team — used to mark where your next pick lands"><option value="">My team…</option></select>
         <button class="livebtn danger" id="reset-btn" title="Clear tracked picks and start a fresh draft">Reset picks</button>
         <button class="livebtn" id="avail-btn" title="Show only players still on the board">Hide drafted</button>
         <button class="livebtn" id="rosters-btn" title="See every team's roster">Rosters &rsaquo;</button>
@@ -691,7 +706,7 @@ tr.dnprow .pts{font-weight:700;font-size:.62rem;letter-spacing:.04em}
 const POS_TABS=['All','QB','RB','WR','RB/WR','TE','FLX','K','D/ST'];
 const FLX=new Set(['RB','WR','TE']);
 const RBWR=new Set(['RB','WR']);
-const state={pos:'All',q:'',sortK:'adpRank',sortDir:1,open:new Set(),cmp:[],cmpView:'25',hideDrafted:false,view:'players',boardView:'round'};
+const state={pos:'All',q:'',sortK:'adpRank',sortDir:1,open:new Set(),cmp:[],cmpView:'25',hideDrafted:false,view:'players',boardView:'round',myTeam:null};
 
 /* ============================ Live draft =============================
    The board cannot read a private ESPN league itself -- the draft endpoint
@@ -761,6 +776,17 @@ function paintLive(){
   else{el.classList.add('live');txt=`${LIVE.picks.length} picks · synced ${Math.round(LIVE.age||0)}s ago`;}
   tx.textContent=txt;
   el.title=LIVE.message||txt;
+
+  const sel=document.getElementById('myteam');
+  if(sel){
+    const want=LIVE.teams.map(t=>t.id).join(',');
+    if(sel.dataset.teams!==want){
+      sel.dataset.teams=want;
+      sel.innerHTML='<option value="">My team…</option>'+
+        LIVE.teams.map(t=>`<option value="${t.id}">${esc(t.name)}</option>`).join('');
+      if(state.myTeam)sel.value=state.myTeam;
+    }
+  }
 
   // only re-render the board when the pick set actually changed
   if(LIVE.picks.length!==LIVE.seen){
@@ -1110,6 +1136,43 @@ function sosCell(p){
 const PLUS='<svg width="11" height="11" viewBox="0 0 12 12"><path d="M6 1v10M1 6h10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
 const CHECK='<svg width="11" height="11" viewBox="0 0 12 12"><path d="M2 6.5 5 9.5 10 2.5" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 
+
+/* Where your next pick lands.
+
+   Snake order comes from who held each slot in round 1: for overall pick o with
+   n teams, the slot is (o-1) % n, reversed on even rounds. Walk forward from
+   the next pick until it's yours; the count of picks in between is how many
+   players come off the board first -- so the marker goes after that many
+   still-available players in the current sort. */
+function snakeTeamAt(overall,order){
+  const n=order.length;
+  if(!n)return null;
+  const r=Math.ceil(overall/n);
+  let i=(overall-1)%n;
+  if(r%2===0)i=n-1-i;
+  return order[i];
+}
+function myNextPick(){
+  if(!LIVE.on||!state.myTeam||!LIVE.picks.length)return null;
+  const order=draftOrder();
+  if(!order.length)return null;
+  const made=LIVE.picks.length;
+  const n=order.length;
+  for(let o=made+1;o<=made+n*2+1;o++){
+    if(String(snakeTeamAt(o,order))===String(state.myTeam)){
+      return {overall:o,away:o-(made+1),
+              round:Math.ceil(o/n),
+              slot:((Math.ceil(o/n)%2===0)?(n-((o-1)%n)):(((o-1)%n)+1))};
+    }
+  }
+  return null;
+}
+function pickMarkerRow(info,colspan){
+  const label=info.away===0?'You are on the clock'
+    :`Your next pick · ${info.round}.${String(info.slot).padStart(2,'0')} · ${info.away} pick${info.away===1?'':'s'} away`;
+  return `<tr class="pickmark"><td colspan="${colspan}"><span>${label}</span></td></tr>`;
+}
+
 function rowHTML(p,i){
   const n=p.news&&p.news[0];
   const itag=ITAG[p.injuryStatus]?`<span class="itag">${ITAG[p.injuryStatus]}</span>`:'';
@@ -1316,7 +1379,14 @@ function render(){
   if(!rows.length){
     tb.innerHTML='<tr><td colspan="12"><div class="empty"><b>No players found</b>Try a different name or position filter.</div></td></tr>';
   }else{
-    tb.innerHTML=rows.map((p,i)=>rowHTML(p,i)+(state.open.has(p.id)?detailHTML(p):'')).join('');
+    const mark=myNextPick();
+    let seenAvail=0, placed=false;
+    tb.innerHTML=rows.map((p,i)=>{
+      let out='';
+      if(mark&&!placed&&seenAvail>=mark.away){out+=pickMarkerRow(mark,12);placed=true;}
+      if(!LIVE.byPlayer.has(p.id))seenAvail++;
+      return out+rowHTML(p,i)+(state.open.has(p.id)?detailHTML(p):'');
+    }).join('')+((mark&&!placed)?pickMarkerRow(mark,12):'');
   }
   document.getElementById('count').textContent=`Showing ${rows.length} of ${DATA.length} players`;
   document.querySelectorAll('th.sortable').forEach(th=>{
@@ -1592,6 +1662,10 @@ function initCompare(){
     },4000);
   });
 
+  document.getElementById('myteam').addEventListener('change',e=>{
+    state.myTeam=e.target.value||null;
+    render();
+  });
   document.getElementById('pc-close').addEventListener('click',closePlayerCard);
   document.getElementById('pc-body').addEventListener('click',e=>{
     const d=e.target.closest('.dcp[data-pid]'); if(d)openPlayer(+d.dataset.pid);
