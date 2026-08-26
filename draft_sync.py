@@ -350,10 +350,12 @@ class Handler(SimpleHTTPRequestHandler):
         self.wfile.write(body)
 
     def do_GET(self):
-        # Image-beacon fallback for browsers that refuse the cross-origin POST.
-        # An <img> request is a plain navigation-style GET: no CORS, no preflight.
-        if self.path.split("?")[0] == "/api/ingest":
-            added = 0
+        # Sink window: the draft room page can't reach us as a subresource
+        # (Chrome blocks HTTPS -> local HTTP for fetch, XHR and images alike),
+        # but it CAN navigate a window it opened. The bookmarklet keeps one
+        # small window and re-navigates it here with each batch of picks.
+        if self.path.split("?")[0] in ("/api/ingest", "/api/sink"):
+            added, err = 0, ""
             try:
                 from urllib.parse import urlparse, parse_qs
                 q = parse_qs(urlparse(self.path).query)
@@ -365,16 +367,31 @@ class Handler(SimpleHTTPRequestHandler):
                 elif INGEST:
                     INGEST.add([])                      # heartbeat
             except Exception as e:
-                print("beacon ingest failed:", e, file=sys.stderr)
-            png = base64.b64decode(
-                b"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==")
+                err = "%s: %s" % (type(e).__name__, e)
+                print("sink ingest failed:", err, file=sys.stderr)
+
+            total = len(INGEST.picks) if INGEST else 0
+            last = ""
+            if INGEST and INGEST.picks:
+                k = sorted(INGEST.picks)[-1]
+                p = INGEST.picks[k]
+                last = "%s.%02d &middot; %s" % (k[0], k[1], p["_info"]["name"])
+            body = ("""<!doctype html><meta charset=utf-8><title>FF Research sink</title>
+<style>html,body{margin:0;height:100%%;background:#17181a;color:#e8eaec;
+font:600 12px/1.45 -apple-system,'Segoe UI',sans-serif;display:flex;align-items:center;
+justify-content:center;text-align:center}b{font-size:22px;display:block;color:#4ade80}
+small{color:#9aa3ab;font-weight:500}em{color:#f87171;font-style:normal}</style>
+<div><b>%d</b>picks received<br><small>%s</small>%s
+<br><small>keep this window open</small></div>""" % (
+                total, last or "waiting for the first pick",
+                ("<br><em>%s</em>" % err) if err else "")).encode()
             self.send_response(200)
-            self.send_header("Content-Type", "image/png")
-            self.send_header("Content-Length", str(len(png)))
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
             self.send_header("X-Added", str(added))
             self._cors()
             self.end_headers()
-            self.wfile.write(png)
+            self.wfile.write(body)
             return
 
         if self.path.split("?")[0] == "/api/draft":

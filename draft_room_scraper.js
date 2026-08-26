@@ -1,89 +1,98 @@
 /* FF Research — draft room companion.
-   Runs inside an ESPN draft room, reads the Picks feed, and pushes new picks to
-   the local helper on 127.0.0.1:8787. This is the only way to see practice and
-   mock drafts, which ESPN never writes to the league API. Works in a real draft
-   room too, and gets picks a beat sooner than the API does. */
+   Reads the ESPN draft room's pick feed and hands new picks to the local
+   helper. This is the only way to see practice and mock drafts, which ESPN
+   never writes to the league API; it works in a real draft room too.
+
+   Transport: Chrome refuses every subresource request from an HTTPS page to a
+   local HTTP server — fetch, XHR and images alike. But a page may navigate a
+   window it opened. So we keep one small window pointed at the helper and
+   re-navigate it with each batch. Ugly, and the only thing that works without
+   installing an extension. */
 (function () {
   var HELPER = 'http://127.0.0.1:8787/api/ingest';
-  var EVERY = 1500;
-  if (window.__ffScraper) { window.__ffScraper.stop(); }
+  var EVERY = 1500;          // how often to read the room
+  var BEAT = 5000;           // ping the helper at least this often
+  var MAXURL = 6000;
 
-  var seen = Object.create(null), sent = 0, fails = 0, mode = 'auto';
+  if (window.__ffScraper) window.__ffScraper.stop();
+
+  var seen = Object.create(null), sent = 0, queue = [], lastPing = 0, sink = null;
 
   var box = document.createElement('div');
   box.style.cssText = 'position:fixed;z-index:2147483647;right:12px;bottom:12px;' +
     'background:#17181a;color:#fff;font:600 12px/1.35 -apple-system,Segoe UI,sans-serif;' +
-    'padding:8px 11px;border-radius:7px;box-shadow:0 4px 14px rgba(0,0,0,.35);cursor:pointer;';
+    'padding:8px 11px;border-radius:7px;box-shadow:0 4px 14px rgba(0,0,0,.35);cursor:pointer';
   box.title = 'Click to stop the FF Research companion';
   document.body.appendChild(box);
-
-  function paint(msg, color) {
-    box.innerHTML = '<span style="color:' + (color || '#4ade80') + '">●</span> FF Research · ' + msg;
+  function paint(msg, c) {
+    box.innerHTML = '<span style="color:' + (c || '#4ade80') + '">●</span> FF Research · ' + msg;
   }
 
   function parse(li) {
-    var t = (li.innerText || '').replace(/ /g, ' ').trim();
-    // "Mike Evans / SF WR"  +  "R9, P3 - Je Ne Saquon"
-    // position may be a list: "Travis Hunter / JAX WR, CB"
+    var t = (li.innerText || '').replace(/ /g, ' ').trim();
     var m = t.match(/^([^\/\n]+?)\s*\/\s*([A-Z]{2,4})\s+([A-Z\/]+(?:\s*,\s*[A-Z\/]+)*)\s*\n\s*R(\d+)\s*,\s*P(\d+)\s*[-–]\s*(.+)$/);
     if (!m) return null;
-    return {
-      name: m[1].trim(),
-      nfl: m[2],
-      pos: m[3].split(',')[0].trim(),
-      round: +m[4],
-      pick: +m[5],
-      team: m[6].trim()
-    };
+    return { name: m[1].trim(), nfl: m[2], pos: m[3].split(',')[0].trim(),
+             round: +m[4], pick: +m[5], team: m[6].trim() };
+  }
+
+  function b64(o) {
+    return btoa(unescape(encodeURIComponent(JSON.stringify(o))))
+      .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  }
+
+  function push(rows) {
+    if (!sink || sink.closed) {
+      paint('sink window closed — click the bookmark again', '#f87171');
+      return false;
+    }
+    var url = HELPER + (rows.length ? '?p=' + b64(rows) : '?beat=1') + '&t=' + Date.now();
+    if (url.length > MAXURL) return false;
+    try { sink.location.replace(url); } catch (e) { return false; }
+    lastPing = Date.now();
+    return true;
+  }
+
+  function flush() {
+    if (queue.length) {
+      // send in small batches so the URL stays well under any length limit
+      var batch = queue.slice(0, 8);
+      if (push(batch)) { sent += batch.length; queue = queue.slice(batch.length); }
+      paint(sent + ' picks sent' + (queue.length ? ' (' + queue.length + ' queued)' : ''));
+    } else if (Date.now() - lastPing > BEAT) {
+      push([]);                       // heartbeat: proves the room is still open
+      paint(sent + ' picks sent');
+    }
   }
 
   function scan() {
     var rows = document.querySelectorAll('li.pick-message__container');
     if (!rows.length) rows = document.querySelectorAll('[class*="pick-message__container"]');
-    var fresh = [];
     for (var i = 0; i < rows.length; i++) {
       var p = parse(rows[i]);
       if (!p) continue;
       var k = p.round + '.' + p.pick;
       if (seen[k]) continue;
       seen[k] = 1;
-      fresh.push(p);
+      queue.push(p);
     }
-    // Chrome's Private Network Access can refuse a public page's fetch to a
-    // local address. If it does, fall back to an <img> beacon: a plain GET,
-    // no CORS, no preflight, nothing for PNA to reject.
-    function beacon(rows, ok, bad) {
-      var b64 = btoa(unescape(encodeURIComponent(JSON.stringify(rows))))
-                  .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-      if (b64.length > 6000) { bad(); return; }
-      var img = new Image();
-      img.onload = ok;
-      img.onerror = bad;
-      img.src = HELPER + '?p=' + b64 + '&t=' + Date.now();
-    }
+    if (!rows.length) paint('no picks visible — is this the draft room?', '#facc15');
+    flush();
+  }
 
-    function won() { sent += fresh.length; fails = 0; paint(sent + ' picks sent', '#4ade80'); }
-    function lost() {
-      fails++;
-      for (var i = 0; i < fresh.length; i++) delete seen[fresh[i].round + '.' + fresh[i].pick];
-      paint('helper unreachable — is draft_sync.py running?', '#f87171');
-    }
-
-    if (mode !== 'beacon') {
-      fetch(HELPER, {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/plain' },
-        body: JSON.stringify(fresh)
-      }).then(function (r) { return r.json(); })
-        .then(function () { mode = 'fetch'; won(); })
-        .catch(function () { mode = 'beacon'; beacon(fresh, won, lost); });
-    } else {
-      beacon(fresh, won, lost);
-    }
+  // must happen inside the click that ran the bookmarklet, or the popup blocker eats it
+  sink = window.open(HELPER + '?beat=1', 'ffsink', 'width=280,height=150');
+  if (!sink) {
+    paint('popup blocked — allow popups for espn.com, then click again', '#f87171');
+    return;
   }
 
   var timer = setInterval(scan, EVERY);
-  window.__ffScraper = { stop: function () { clearInterval(timer); box.remove(); window.__ffScraper = null; } };
+  window.__ffScraper = { stop: function () {
+    clearInterval(timer); box.remove();
+    try { if (sink && !sink.closed) sink.close(); } catch (e) {}
+    window.__ffScraper = null;
+  } };
   box.onclick = function () { window.__ffScraper.stop(); };
   paint('starting…', '#facc15');
   scan();
