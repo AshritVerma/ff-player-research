@@ -26,6 +26,8 @@ Select up to 4 players for a side-by-side compare with best values highlighted.
 | `fetch_gamelogs.py` | Add weekly PPR game logs (2024/2025) |
 | `build_standalone.py` | Bundle it all into the standalone file |
 | `draft_sync.py` | Live draft helper — polls ESPN, feeds the Live Draft switch |
+| `draft_room_scraper.js` | Draft-room companion (source for the bookmarklet) |
+| `bookmarklet.txt` | The one-line bookmarklet, with setup instructions |
 
 ## Two ways to run it
 
@@ -85,6 +87,32 @@ player names.
 Leave the helper running during the draft and flip the switch. If it isn't
 running, the switch says `helper offline` and the board behaves exactly as it
 always does — nothing about the offline dashboard depends on it.
+
+### Practice and mock drafts
+
+ESPN never writes practice or mock draft picks to the league API — verified
+directly: mid-practice-draft the league still reports all 144 pick slots with
+`playerId: -1` and every roster empty. Those picks exist only inside the draft
+room page.
+
+So for those, a second source: `bookmarklet.txt` holds a one-line bookmarklet
+that reads the draft room's pick feed and POSTs new picks to the helper. Same
+`/api/draft` shape comes out, so the dashboard needs no idea where picks came
+from. Player names are matched back to real ESPN ids against `data.json`;
+anyone outside the top-300 snapshot still shows up on a roster.
+
+```bash
+python3 draft_sync.py --room-only   # don't bother polling the API at all
+```
+
+It works in a real draft room too, and usually sees a pick a beat before the
+API does — `python3 draft_sync.py` uses whichever source knows about more picks.
+
+Two things to know. The room's pick feed is virtualised — only ~28 picks exist
+in the page at a time — so click the bookmarklet **before the draft starts**, or
+it will miss the early rounds. And the bookmarklet posts on every cycle even
+when nothing new happened, so "synced 3s ago" tracks the room being open rather
+than the last pick; a 30-second gap between picks won't read as stale.
 
 The status readout is deliberately loud: it shows how many seconds ago the last
 successful sync was, and turns amber once that passes 20 seconds. A draft board

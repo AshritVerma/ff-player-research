@@ -80,6 +80,96 @@ class State:
 STATE = State()
 
 
+class Ingest:
+    """Picks pushed in from the draft-room bookmarklet.
+
+    ESPN never writes practice/mock draft picks to the league API, and even in a
+    real draft the room is the earliest source. The bookmarklet scrapes the room
+    and POSTs here; names are matched back to our player ids so the page sees
+    exactly the same shape either way.
+    """
+
+    def __init__(self, data_path):
+        self.lock = threading.Lock()
+        self.picks = {}          # (round, pick) -> pick dict
+        self.updated = None
+        self.by_name = {}
+        try:
+            for p in json.load(open(data_path))["players"]:
+                self.by_name.setdefault(norm_name(p["name"]), p)
+        except Exception:
+            pass
+
+    def resolve(self, name, pos, nfl):
+        p = self.by_name.get(norm_name(name))
+        if p:
+            return p["id"], {"name": p["name"], "pos": p["pos"], "team": p["team"]}
+        # not in the top-300 snapshot: keep a stable synthetic id so the page
+        # can still show them on a roster
+        sid = -(abs(hash(norm_name(name))) % 10_000_000 + 1)
+        return sid, {"name": name, "pos": pos or "?", "team": nfl or ""}
+
+    def add(self, rows):
+        """Any POST -- even an empty one -- is a heartbeat proving the draft room
+        is still open. Freshness must track that, not the last pick: a 30s gap
+        between picks is normal and must not read as 'stale'."""
+        added = 0
+        with self.lock:
+            for r in rows:
+                try:
+                    rnd, pk = int(r["round"]), int(r["pick"])
+                except Exception:
+                    continue
+                key = (rnd, pk)
+                if key in self.picks:
+                    continue
+                pid, info = self.resolve(r.get("name", ""), r.get("pos"), r.get("nfl"))
+                self.picks[key] = {
+                    "playerId": pid, "teamName": (r.get("team") or "").strip(),
+                    "round": rnd, "roundPick": pk, "keeper": False, "_info": info,
+                }
+                added += 1
+            self.updated = time.time()
+        return added
+
+    def snapshot(self, teams_per_round):
+        with self.lock:
+            keys = sorted(self.picks)
+            teams, tid = {}, {}
+            picks, players = [], {}
+            for rnd, pk in keys:
+                p = dict(self.picks[(rnd, pk)])
+                nm = p.pop("teamName") or ("Team %d" % pk)
+                if nm not in tid:
+                    tid[nm] = len(tid) + 1
+                    teams[nm] = {"id": tid[nm], "name": nm, "abbrev": abbrev_of(nm)}
+                p["teamId"] = tid[nm]
+                n = teams_per_round or max((k[1] for k in keys), default=1)
+                p["overall"] = (rnd - 1) * n + pk
+                players[str(p["playerId"])] = p.pop("_info")
+                picks.append(p)
+            return picks, list(teams.values()), players, self.updated
+
+
+def norm_name(n):
+    n = (n or "").lower()
+    for junk in (" jr.", " jr", " sr.", " sr", " iii", " ii", " iv", "'", ".", "-"):
+        n = n.replace(junk, " " if junk.startswith(" ") else "")
+    return " ".join(n.split())
+
+
+def abbrev_of(name):
+    words = [w for w in (name or "").split() if w]
+    if not words:
+        return ""
+    if len(words) == 1:
+        return words[0][:4].upper()
+    return "".join(w[0] for w in words[:4]).upper()
+
+
+INGEST = None
+
+
 # ----------------------------------------------------------------- espn client
 class Espn:
     def __init__(self, league, season, s2, swid):
@@ -230,9 +320,31 @@ class Handler(SimpleHTTPRequestHandler):
         self.send_header("Access-Control-Allow-Headers", "*")
         self.end_headers()
 
+    def do_POST(self):
+        if self.path.split("?")[0] != "/api/ingest":
+            self.send_error(404)
+            return
+        try:
+            n = int(self.headers.get("Content-Length") or 0)
+            rows = json.loads(self.rfile.read(n).decode() or "[]")
+            if isinstance(rows, dict):
+                rows = rows.get("picks") or []
+            added = INGEST.add(rows) if INGEST else 0
+        except Exception as e:
+            body = json.dumps({"ok": False, "error": str(e)}).encode()
+        else:
+            body = json.dumps({"ok": True, "added": added,
+                               "total": len(INGEST.picks) if INGEST else 0}).encode()
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body)))
+        self._cors()
+        self.end_headers()
+        self.wfile.write(body)
+
     def do_GET(self):
         if self.path.split("?")[0] == "/api/draft":
-            body = json.dumps(STATE.get()).encode()
+            body = json.dumps(merged()).encode()
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
             self.send_header("Content-Length", str(len(body)))
@@ -246,6 +358,37 @@ class Handler(SimpleHTTPRequestHandler):
         if self.path.split("?")[0] != "/api/draft":
             self.send_header("Access-Control-Allow-Origin", "*")
         super().end_headers()
+
+
+
+def merged():
+    """What the dashboard sees: the API result, overridden by the draft room
+    whenever the room knows about more picks (always, for practice drafts)."""
+    base = STATE.get()
+    if not INGEST:
+        base["source"] = "api"
+        return base
+    n_per_round = len(base.get("teams") or []) or None
+    picks, teams, players, updated = INGEST.snapshot(n_per_round)
+    if len(picks) <= len(base.get("picks") or []):
+        base["source"] = "api"
+        base["roomPicks"] = len(picks)
+        return base
+    # prefer the league's real team names when the counts line up
+    api_teams = base.get("teams") or []
+    if len(api_teams) == len(teams):
+        for t, a in zip(teams, api_teams):
+            t.setdefault("_apiName", a.get("name"))
+    out = dict(base)
+    out.update({
+        "ok": True, "status": "live", "source": "room",
+        "message": base.get("message") or "",
+        "picks": picks, "teams": teams,
+        "players": {**(base.get("players") or {}), **players},
+        "updated": updated,
+        "age": None if not updated else round(time.time() - updated, 1),
+    })
+    return out
 
 
 def poll_loop(client, interval):
@@ -334,6 +477,10 @@ def main():
     ap.add_argument("--port", type=int, default=8787)
     ap.add_argument("--interval", type=float)
     ap.add_argument("--demo", action="store_true", help="simulate a draft; no ESPN, no cookies")
+    ap.add_argument("--room-only", action="store_true",
+                    help="don't poll the ESPN API at all -- take picks only from the "
+                         "draft-room bookmarklet (the only thing that works for "
+                         "practice and mock drafts)")
     ap.add_argument("--dump", action="store_true",
                     help="fetch once, print what ESPN actually returned, and exit "
                          "(safe to share -- no cookies, no owner names)")
@@ -343,8 +490,24 @@ def main():
     if os.path.exists(CONFIG):
         cfg = json.load(open(CONFIG))
 
+    global INGEST
+    INGEST = Ingest(os.path.join(HERE, "data.json"))
+
     season = args.season or cfg.get("season") or 2026
     interval = args.interval or cfg.get("pollInterval") or 5
+
+    if args.room_only:
+        STATE.set(ok=True, status="waiting", updated=time.time(),
+                  message="Room mode - run the bookmarklet in your ESPN draft room")
+        print("ROOM-ONLY MODE - picks come from the draft-room bookmarklet")
+        print("Open bookmarklet.txt and follow the two lines at the top.")
+        srv = ThreadingHTTPServer(("127.0.0.1", args.port), Handler)
+        print("Draft helper on http://127.0.0.1:%d" % args.port)
+        try:
+            srv.serve_forever()
+        except KeyboardInterrupt:
+            print("\nstopped")
+        return
 
     if args.demo:
         client = Demo(os.path.join(HERE, "data.json"))
@@ -370,6 +533,8 @@ def main():
     srv = ThreadingHTTPServer(("127.0.0.1", args.port), Handler)
     print("Draft helper on http://127.0.0.1:%d" % args.port)
     print("Open the dashboard and flip the Live Draft switch. Ctrl-C to stop.")
+    print("Practice/mock draft? Also run bookmarklet.txt in the draft room -- "
+          "ESPN never writes those picks to the API.")
     try:
         srv.serve_forever()
     except KeyboardInterrupt:
