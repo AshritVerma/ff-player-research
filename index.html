@@ -562,7 +562,8 @@ tr.dnprow .pts{font-weight:700;font-size:.62rem;letter-spacing:.04em}
   display:inline-flex;align-items:baseline;gap:6px;border:1px solid var(--line);background:#fff;
   border-radius:999px;padding:3px 9px;font:inherit;cursor:pointer;
 }
-.dcp:hover{border-color:var(--blue);background:var(--hover)}
+.dcp:hover:not([disabled]){border-color:var(--blue);background:var(--hover)}
+.dcp[disabled]{cursor:default;opacity:.62}
 .dcn{font-size:.72rem;font-weight:700;color:var(--ink)}
 .dcr{font-size:.6rem;font-weight:700;color:var(--ink-3);font-variant-numeric:tabular-nums}
 .pcard .depth{padding:12px 0 4px}
@@ -1150,30 +1151,35 @@ function projBox(label,proj,prior,note){
    for the ball. Derived from the board's own rankings, so it always agrees
    with the rest of the page; coaches come from the 32-entry map in data.json. */
 function depthChart(p){
-  const staff=(EXTRA.coaches||{})[p.team]||{};
-  const mates=(pos,n)=>DATA
+  const info=(EXTRA.coaches||{})[p.team]||{};
+  const pool=info.depth||{};
+  // Prefer the deep per-team list from data.json -- the 300-player board alone
+  // doesn't hold a team's third receiver, which is why this used to come up
+  // short. Fall back to the board if that map is missing.
+  const fromPool=(pos,n)=>(pool[pos]||[])
+    .filter(x=>x.id!==p.id)
+    .slice(0,n)
+    .map(x=>({id:x.id,name:x.n,rank:x.r}));
+  const fromBoard=(pos,n)=>DATA
     .filter(x=>x.team===p.team&&x.pos===pos&&x.id!==p.id)
     .sort((a,b)=>(a.rank??9999)-(b.rank??9999))
-    .slice(0,n);
+    .slice(0,n)
+    .map(x=>({id:x.id,name:x.name,rank:x.rank}));
   const grp=(label,pos,n)=>{
-    const list=mates(pos,n);
+    const list=(pool[pos]&&pool[pos].length)?fromPool(pos,n):fromBoard(pos,n);
     if(!list.length)return '';
     return `<div class="dcgrp"><div class="dclabel">${label}</div>${
-      list.map(x=>`<button class="dcp" data-pid="${x.id}">
+      list.map(x=>`<button class="dcp" data-pid="${x.id}"${byId(x.id)?'':' disabled'}>
         <span class="dcn">${esc(x.name)}</span>
         <span class="dcr">${x.rank!=null?'#'+x.rank:'--'}</span></button>`).join('')}</div>`;
   };
-  const same=p.pos;
-  const counts={WR:3,RB:2,TE:2};
-  // one extra at the player's own position, since that's the room they're in
-  if(counts[same]!=null)counts[same]=counts[same];
   return `<div class="depth">
     <div class="dtitle">${esc(p.team)} Depth <span style="font-weight:500;text-transform:none;letter-spacing:0">· others at each spot</span></div>
     <div class="dcstaff">
-      <div><span>HC</span><b>${staff.hc?esc(staff.hc):'--'}</b></div>
-      <div><span>OC</span><b>${staff.oc?esc(staff.oc):'--'}</b></div>
+      <div><span>HC</span><b>${info.hc?esc(info.hc):'--'}</b></div>
+      <div><span>OC</span><b>${info.oc?esc(info.oc):'--'}</b></div>
     </div>
-    ${grp('WR','WR',counts.WR)}${grp('RB','RB',counts.RB)}${grp('TE','TE',counts.TE)}
+    ${grp('WR','WR',3)}${grp('RB','RB',2)}${grp('TE','TE',2)}
   </div>`;
 }
 
