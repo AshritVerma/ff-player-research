@@ -410,6 +410,42 @@ table.board .rnd{
 .bslot{font-size:.6rem;font-weight:700;color:var(--ink-3);letter-spacing:.04em}
 .vempty{padding:44px 24px;text-align:center;color:var(--ink-3);font-size:.85rem;line-height:1.6}
 .vempty b{display:block;color:var(--ink);font-size:.95rem;margin-bottom:6px}
+
+/* ---------- Drafted ticker ---------- */
+.ticker{
+  background:var(--espn-dark2);border-bottom:1px solid #2e3134;
+  display:flex;align-items:stretch;position:sticky;top:56px;z-index:25;
+}
+.ticker[hidden]{display:none}
+.tk-label{
+  flex:0 0 auto;display:flex;align-items:center;gap:7px;padding:0 14px;
+  font-size:.62rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;
+  color:#9aa3ab;border-right:1px solid #2e3134;white-space:nowrap;
+}
+.tk-label::before{content:'';width:7px;height:7px;border-radius:50%;background:var(--green);animation:lpulse 1.8s ease-in-out infinite}
+.tk-scroll{overflow-x:auto;overflow-y:hidden;flex:1;scrollbar-width:thin;scrollbar-color:#4a4f54 transparent}
+.tk-scroll::-webkit-scrollbar{height:7px}
+.tk-scroll::-webkit-scrollbar-thumb{background:#4a4f54;border-radius:99px}
+.tk-scroll::-webkit-scrollbar-track{background:transparent}
+.tk-row{display:flex;gap:8px;padding:8px 10px;min-height:56px}
+.tick{
+  flex:0 0 auto;display:flex;align-items:center;gap:8px;background:#2b2e31;
+  border:1px solid #3a3e42;border-radius:7px;padding:5px 10px 5px 6px;min-width:180px;
+}
+.tick.fresh{animation:tkin .45s ease}
+@keyframes tkin{from{opacity:0;transform:translateX(-10px)}to{opacity:1;transform:none}}
+.tick .tkhs{width:34px;height:25px;border-radius:4px;object-fit:cover;object-position:top;background:#3a3e42;flex-shrink:0}
+.tick .tkhs.logo-img{object-fit:contain;padding:2px;background:#fff}
+.tick .ph{
+  width:34px;height:25px;border-radius:4px;background:#3a3e42;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;font-size:.56rem;font-weight:700;color:#9aa3ab;
+}
+.tk-n{font-size:.74rem;font-weight:700;color:#fff;white-space:nowrap;line-height:1.25}
+.tk-m{font-size:.62rem;color:#9aa3ab;font-weight:600;white-space:nowrap}
+.tk-m b{color:#e8eaec;font-weight:700}
+.tk-f{font-size:.62rem;color:#7c848c;font-weight:600;white-space:nowrap;
+  max-width:150px;overflow:hidden;text-overflow:ellipsis}
+@media (max-width:700px){.tk-label{display:none}}
 </style>
 </head>
 <body>
@@ -428,6 +464,11 @@ table.board .rnd{
     Data: ESPN Fantasy · <span id="meta-date">—</span>
   </div>
 </header>
+
+<div class="ticker" id="ticker" hidden>
+  <div class="tk-label">Latest picks</div>
+  <div class="tk-scroll" id="tk-scroll"><div class="tk-row" id="tk-row"></div></div>
+</div>
 
 <div class="page">
   <div class="card">
@@ -592,6 +633,7 @@ function paintLive(){
     LIVE.seen=LIVE.picks.length;
     render();
   }
+  renderTicker();
   if(state.view==='history')renderHistory();
   if(state.view==='board')renderBoard();
 }
@@ -604,6 +646,7 @@ function setLive(on){
   }else{
     clearInterval(LIVE.timer);LIVE.timer=null;
     LIVE.reachable=false;LIVE.picks=[];LIVE.byPlayer=new Map();LIVE.seen=-1;
+    TICK.rendered.clear();document.getElementById('tk-row').innerHTML='';
     state.hideDrafted=false;
     render();
   }
@@ -714,6 +757,49 @@ function renderBoard(){
     }
   });
   el.innerHTML=`<div class="bwrap"><table class="board"><thead>${head}</thead><tbody>${rows.join('')}</tbody></table></div>`;
+}
+
+
+/* ---------------------------- Drafted ticker ----------------------------
+   Newest pick on the left; scroll right to walk back through the draft.
+   Rendered incrementally rather than rebuilt, so scrolling into the past
+   isn't yanked back to the front every time a pick lands.               */
+const TICK={rendered:new Set()};
+
+function tickerImg(p,info){
+  const src=byId(p.playerId);
+  if(src)return headshot(src).replace('class="hs logo-img"','class="tkhs logo-img"').replace('class="hs"','class="tkhs"');
+  return `<div class="ph">${esc((info.pos||'?').slice(0,2))}</div>`;
+}
+
+function tickerCard(p,fresh){
+  const info=lookupPlayer(p.playerId);
+  return `<div class="tick${fresh?' fresh':''}">${tickerImg(p,info)}<div>
+    <div class="tk-n">${esc(info.name)}</div>
+    <div class="tk-m">${esc(info.team||'')}${info.pos?' · '+esc(info.pos):''} · <b>${pickLabel(p)}</b></div>
+    <div class="tk-f">${esc(teamName(p.teamId))}</div></div></div>`;
+}
+
+function renderTicker(){
+  const bar=document.getElementById('ticker');
+  const box=document.getElementById('tk-scroll');
+  const row=document.getElementById('tk-row');
+  if(!LIVE.on||!LIVE.picks.length){
+    bar.hidden=true; row.innerHTML=''; TICK.rendered.clear(); return;
+  }
+  bar.hidden=false;
+  const fresh=LIVE.picks.filter(p=>!TICK.rendered.has(p.round+'.'+p.roundPick))
+                        .sort((a,b)=>(a.overall||0)-(b.overall||0));
+  if(!fresh.length)return;
+  const wasAtFront=box.scrollLeft<=10;
+  const before=row.scrollWidth;
+  // newest first, so each new pick goes on the front
+  fresh.forEach(p=>{
+    TICK.rendered.add(p.round+'.'+p.roundPick);
+    row.insertAdjacentHTML('afterbegin',tickerCard(p,true));
+  });
+  if(wasAtFront)box.scrollLeft=0;
+  else box.scrollLeft += (row.scrollWidth-before);   // hold the reader's place
 }
 /* =================== end Pick History & Board views =================== */
 
@@ -1097,6 +1183,13 @@ function initCompare(){
   const goRosters=()=>{state.boardView='roster';setView('board');};
   document.getElementById('rosters-btn').addEventListener('click',goRosters);
   document.getElementById('livestat').addEventListener('click',()=>{if(LIVE.on)goRosters();});
+  // a vertical trackpad flick should walk the ticker sideways, not do nothing
+  document.getElementById('tk-scroll').addEventListener('wheel',e=>{
+    if(Math.abs(e.deltaY)<=Math.abs(e.deltaX))return;
+    e.preventDefault();
+    e.currentTarget.scrollLeft+=e.deltaY;
+  },{passive:false});
+
   document.getElementById('views').addEventListener('click',e=>{
     const v=e.target.closest('[data-view]'); if(v){setView(v.dataset.view);return;}
     const b=e.target.closest('[data-bv]');
