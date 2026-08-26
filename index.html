@@ -567,6 +567,8 @@ tr.dnprow .pts{font-weight:700;font-size:.62rem;letter-spacing:.04em}
 .dcn{font-size:.72rem;font-weight:700;color:var(--ink)}
 .dcr{font-size:.6rem;font-weight:700;color:var(--ink-3);font-variant-numeric:tabular-nums}
 .pcard .depth{padding:12px 0 4px}
+
+.dnpcell{color:var(--ink-3);font-size:.62rem;font-weight:700;letter-spacing:.04em}
 </style>
 </head>
 <body>
@@ -1183,6 +1185,22 @@ function depthChart(p){
   </div>`;
 }
 
+
+/* Games actually played, from a game log.
+
+   The log carries a row for every week the team played, including weeks the
+   player sat, which show as 0.0. Dividing by all of them is not an average.
+   gp is ESPN's own games-played count when we have it (2025); otherwise fall
+   back to counting non-zero weeks. Defined once because this was wrong in two
+   places independently -- the player card and the compare grid each had their
+   own arithmetic. */
+function playedCount(log,gp){
+  if(!log||!log.length)return 0;
+  const zeros=log.filter(g=>g[1]===0).length;
+  return (gp!=null&&gp>0&&gp<=log.length)?gp:Math.max(1,log.length-zeros);
+}
+const gpFor=(p,key)=>key==='g25'?(p.gp25??null):null;
+
 function detailInner(p){
   const news=(p.news||[]).slice(0,10);
   const newsList=news.length?news.map(n=>`
@@ -1201,8 +1219,7 @@ function detailInner(p){
     // The log carries a row for every week the team played, including weeks
     // this player didn't. Dividing by all of them is not an average, it's a
     // per-week rate that punishes injuries twice. Use games actually played.
-    const zeros=log.filter(g=>g[1]===0).length;
-    const played=(gp!=null&&gp>0&&gp<=log.length)?gp:Math.max(1,log.length-zeros);
+    const played=playedCount(log,gp);
     const dnp=log.length-played;
     const avg=tot/played;
     const anyProj=log.some(g=>g[3]!=null);
@@ -1462,19 +1479,27 @@ function buildModal(){
     const maps=ps.map(p=>new Map((p[key]||[]).map(g=>[g[0],g])));
     if(maps.every(m=>m.size===0))return'';
     const weeks=[...new Set(maps.flatMap(m=>[...m.keys()]))].sort((x,y)=>x-y);
+    const dnpSet=ps.map((p,i)=>{
+      const l=p[key]||[];
+      return (l.length-playedCount(l,gpFor(p,key)))>0;
+    });
     const rows=weeks.map(w=>{
       const gs=maps.map(m=>m.get(w)||null);
-      const mk=bestMark(gs.map(g=>g?g[1]:null),false);
-      const cells=gs.map((g,i)=>g
-        ?`<td class="num ${mk[i]?'best':''}"><span class="glopp">${g[2]||''}</span>${g[1].toFixed(1)}</td>`
-        :'<td><span class="dash">--</span></td>').join('');
+      // don't let a week someone sat out win "best of the week"
+      const mk=bestMark(gs.map((g,i)=>(g&&!(dnpSet[i]&&g[1]===0))?g[1]:null),false);
+      const cells=gs.map((g,i)=>{
+        if(!g)return'<td><span class="dash">--</span></td>';
+        if(dnpSet[i]&&g[1]===0)return'<td class="num dnpcell">DNP</td>';
+        return `<td class="num ${mk[i]?'best':''}"><span class="glopp">${g[2]||''}</span>${g[1].toFixed(1)}</td>`;
+      }).join('');
       return `<tr><td class="lbl">Wk ${w}</td>${cells}</tr>`;
     }).join('');
     const totals=ps.map(p=>{
       const l=p[key]||[];
       if(!l.length)return'<td><span class="dash">--</span></td>';
       const t=l.reduce((s,g)=>s+g[1],0);
-      return `<td class="num"><b>${t.toFixed(1)}</b><span class="tt">${(t/l.length).toFixed(1)}/g</span></td>`;
+      const played=playedCount(l,gpFor(p,key));
+      return `<td class="num"><b>${t.toFixed(1)}</b><span class="tt">${(t/played).toFixed(1)}/g · ${played} gp</span></td>`;
     }).join('');
     return `<tr class="sec"><td colspan="${nsec}">Game Log — ${season} <span style="font-weight:500;text-transform:none;letter-spacing:0">· PPR points</span></td></tr>${rows}<tr><td class="lbl">Total</td>${totals}</tr>`;
   };
