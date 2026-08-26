@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Player Research</title>
+<title>FF Draft Helper</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
@@ -307,7 +307,12 @@ body.tray-open .page{padding-bottom:120px}
   font:inherit;font-size:.72rem;font-weight:600;color:var(--ink-2);cursor:pointer;white-space:nowrap;
 }
 .livebtn:hover{background:var(--hover);border-color:#c9d3dc}
+.livebtn.on{background:var(--espn-dark);border-color:var(--espn-dark);color:#fff}
 .livebtn[hidden]{display:none}
+/* on Pick History / Board keep only the live switch and status */
+.controls.slim .search,.controls.slim #tabs,.controls.slim #count,
+.controls.slim #avail-btn,.controls.slim #rosters-btn{display:none}
+.controls.slim{justify-content:flex-end}
 
 tr.p-row.drafted{background:#fbfbfc}
 tr.p-row.drafted .pname{color:var(--ink-3);text-decoration:line-through;text-decoration-thickness:1px}
@@ -337,18 +342,86 @@ tr.p-row.drafted td:not(.l){opacity:.45}
 .lhelp{padding:22px 24px;font-size:.8125rem;line-height:1.6;color:var(--ink-2)}
 .lhelp code{background:var(--group-bg);border:1px solid var(--line-soft);border-radius:4px;padding:1px 5px;font-size:.76rem}
 .lhelp b{color:var(--ink)}
+
+/* ---------- View tabs (Players / Pick History / Board) ---------- */
+.views{display:flex;align-items:center;gap:2px;padding:0 14px;border-bottom:1px solid var(--line);background:#fff;border-radius:var(--radius) var(--radius) 0 0}
+.views button{
+  appearance:none;border:0;background:none;font:inherit;font-size:.8125rem;font-weight:600;
+  color:var(--ink-2);padding:11px 12px;cursor:pointer;border-bottom:3px solid transparent;
+  margin-bottom:-1px;white-space:nowrap;
+}
+.views button:hover{color:var(--blue)}
+.views button.on{color:var(--ink);border-bottom-color:var(--green)}
+.views .vspacer{flex:1}
+.boardseg{display:flex;gap:2px;padding:6px 0}
+.boardseg button{
+  padding:5px 11px;border-radius:999px;border:1px solid var(--line);background:#fff;
+  font-size:.72rem;font-weight:600;color:var(--ink-2);cursor:pointer;margin:0;border-bottom-width:1px;
+}
+.boardseg button.on{background:var(--espn-dark);border-color:var(--espn-dark);color:#fff}
+.boardseg[hidden]{display:none}
+
+/* ---------- Pick History ---------- */
+.hround{
+  font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-3);
+  padding:10px 20px 6px;background:var(--group-bg);border-bottom:1px solid var(--line-soft);
+}
+table.hist{width:100%;border-collapse:collapse}
+table.hist th{
+  font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-3);
+  text-align:right;padding:7px 10px;border-bottom:1px solid var(--line-soft);
+}
+table.hist th.l,table.hist td.l{text-align:left}
+table.hist td{padding:7px 10px;border-bottom:1px solid var(--line-soft);text-align:right;font-size:.78rem}
+table.hist tr:hover td{background:var(--hover)}
+table.hist .pk{color:var(--ink-3);font-variant-numeric:tabular-nums;width:56px}
+table.hist .nm{font-weight:700;color:var(--blue)}
+table.hist .sub{color:var(--ink-3);font-size:.68rem;font-weight:600}
+table.hist .tm{font-weight:600;color:var(--ink-2)}
+table.hist tr.mine td{background:#f0fbf3}
+table.hist tr.mine .tm{color:var(--green)}
+
+/* ---------- Board ---------- */
+.bwrap{overflow:auto;max-height:72vh}
+table.board{border-collapse:separate;border-spacing:6px;padding:10px}
+table.board th{
+  position:sticky;top:0;z-index:2;background:#fff;font-size:.66rem;font-weight:700;color:var(--ink-2);
+  padding:6px 8px;white-space:nowrap;text-align:center;border-bottom:1px solid var(--line);
+}
+table.board td{vertical-align:top}
+table.board .rnd{
+  position:sticky;left:0;z-index:1;background:#fff;font-size:.66rem;font-weight:700;color:var(--ink-3);
+  padding:0 6px;white-space:nowrap;
+}
+.bcell{
+  min-width:118px;max-width:150px;border:1px solid var(--line-soft);border-radius:6px;padding:6px 7px;
+  background:#fafbfc;line-height:1.25;
+}
+.bcell.empty{background:transparent;border-style:dashed;min-height:40px}
+.bcell .p{font-size:.62rem;color:var(--ink-3);font-weight:700;font-variant-numeric:tabular-nums}
+.bcell .n{font-size:.72rem;font-weight:700;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bcell .m{font-size:.62rem;color:var(--ink-3);font-weight:600}
+.bcell.QB{background:#eef4ff;border-color:#d6e4ff}
+.bcell.RB{background:#eefaf0;border-color:#d3f0da}
+.bcell.WR{background:#fff5e9;border-color:#ffe4c4}
+.bcell.TE{background:#fdeef6;border-color:#f8d5e7}
+.bcell.K{background:#f4f0fb;border-color:#e5dbf5}
+.bcell[class*="D/ST"]{background:#eef1f4;border-color:#dde3e9}
+.bslot{font-size:.6rem;font-weight:700;color:var(--ink-3);letter-spacing:.04em}
+.vempty{padding:44px 24px;text-align:center;color:var(--ink-3);font-size:.85rem;line-height:1.6}
+.vempty b{display:block;color:var(--ink);font-size:.95rem;margin-bottom:6px}
 </style>
 </head>
 <body>
 
 <header class="topbar">
   <div class="logo">
-    <svg width="30" height="30" viewBox="0 0 32 32" fill="none" aria-label="Gridiron IQ logo">
+    <svg width="30" height="30" viewBox="0 0 32 32" fill="none" aria-label="FF Draft Helper logo">
       <rect x="1" y="1" width="30" height="30" rx="7" fill="#cc0000"/>
       <path d="M8 22 L13 15 L17 18 L24 9" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
       <circle cx="24" cy="9" r="2.4" fill="#fff"/>
     </svg>
-    <div class="brand">Player Research</div>
+    <div class="brand">FF Draft Helper</div>
   </div>
   <div class="meta num">
     <b id="meta-count">—</b> players · PPR scoring<br>
@@ -358,14 +431,25 @@ tr.p-row.drafted td:not(.l){opacity:.45}
 
 <div class="page">
   <div class="card">
-    <div class="controls">
+    <nav class="views" id="views" aria-label="Views">
+      <button class="on" data-view="players">Players</button>
+      <button data-view="history">Pick History</button>
+      <button data-view="board">Board</button>
+      <div class="vspacer"></div>
+      <div class="boardseg" id="boardseg" hidden>
+        <button class="on" data-bv="round">Round View</button>
+        <button data-bv="roster">Roster View</button>
+      </div>
+    </nav>
+    <div class="controls" id="controls">
       <div class="search">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.8-3.8"/></svg>
         <input id="q" type="text" placeholder="Player name or team…" autocomplete="off">
       </div>
       <div class="tabs" id="tabs"></div>
       <div class="livewrap">
-        <button class="livebtn" id="rosters-btn" hidden>Rosters</button>
+        <button class="livebtn" id="avail-btn" title="Show only players still on the board">Hide drafted</button>
+        <button class="livebtn" id="rosters-btn" title="See every team's roster">Rosters &rsaquo;</button>
         <span class="livestat" id="livestat"><span class="dot"></span><span id="livestat-txt"></span></span>
         <label class="liveswitch" title="Track your ESPN draft live (needs draft_sync.py running)">
           <input type="checkbox" id="live-toggle">
@@ -375,7 +459,7 @@ tr.p-row.drafted td:not(.l){opacity:.45}
       </div>
       <div class="count num" id="count"></div>
     </div>
-    <div class="table-wrap">
+    <div class="table-wrap" id="view-players">
       <table>
         <thead>
           <tr class="groups">
@@ -403,18 +487,10 @@ tr.p-row.drafted td:not(.l){opacity:.45}
         <tbody id="tbody"></tbody>
       </table>
     </div>
+    <div id="view-history" hidden></div>
+    <div id="view-board" hidden></div>
   </div>
   <div class="tray" id="tray" aria-live="polite"></div>
-  <div class="modal-bg" id="rost-bg">
-    <div class="modal" role="dialog" aria-label="Draft rosters">
-      <div class="mhead">
-        <h2>Draft Rosters</h2>
-        <div class="mseg"><button id="rost-avail" data-v="avail">Hide drafted on board</button></div>
-        <button class="mclose" id="rost-close" aria-label="Close">✕</button>
-      </div>
-      <div class="mbody" id="rost-body"></div>
-    </div>
-  </div>
   <div class="modal-bg" id="modal-bg">
     <div class="modal" role="dialog" aria-label="Compare players">
       <div class="mhead">
@@ -439,9 +515,10 @@ tr.p-row.drafted td:not(.l){opacity:.45}
 </div>
 
 <script>
-const POS_TABS=['All','QB','RB','WR','TE','FLX','K','D/ST'];
+const POS_TABS=['All','QB','RB','WR','RB/WR','TE','FLX','K','D/ST'];
 const FLX=new Set(['RB','WR','TE']);
-const state={pos:'All',q:'',sortK:'adpRank',sortDir:1,open:new Set(),cmp:[],cmpView:'25',hideDrafted:false};
+const RBWR=new Set(['RB','WR']);
+const state={pos:'All',q:'',sortK:'adpRank',sortDir:1,open:new Set(),cmp:[],cmpView:'25',hideDrafted:false,view:'players',boardView:'round'};
 
 /* ============================ Live draft =============================
    The board cannot read a private ESPN league itself -- the draft endpoint
@@ -515,60 +592,12 @@ function paintLive(){
     LIVE.seen=LIVE.picks.length;
     render();
   }
-  if(document.getElementById('rost-bg').classList.contains('show'))buildRosters();
-}
-
-function buildRosters(){
-  const body=document.getElementById('rost-body');
-  if(!LIVE.reachable){
-    body.innerHTML=`<div class="lhelp">
-      <p><b>The draft helper isn't running.</b> ${esc(LIVE.message||'')}</p>
-      <p>The board can't read a private ESPN league on its own, so a small local
-      process does it. In Terminal:</p>
-      <p><code>cd ~/Code/ff-player-research</code><br>
-         <code>python3 draft_sync.py --demo</code> &nbsp;— simulated draft, to try it out<br>
-         <code>python3 draft_sync.py</code> &nbsp;— your real draft, once
-         <code>draft_config.json</code> has your league id and cookies</p>
-      <p>Leave it running during the draft. Flip this switch off and the board
-      goes back to normal.</p></div>`;
-    return;
-  }
-  if(!LIVE.teams.length){
-    body.innerHTML=`<div class="rempty">${esc(LIVE.message||'Waiting for ESPN…')}</div>`;
-    return;
-  }
-  const byTeam=new Map(LIVE.teams.map(t=>[t.id,[]]));
-  LIVE.picks.forEach(pk=>{
-    if(!byTeam.has(pk.teamId))byTeam.set(pk.teamId,[]);
-    byTeam.get(pk.teamId).push(pk);
-  });
-  // ESPN team ids are not necessarily 1..N. If a pick names a team that wasn't
-  // in the teams payload, still show it rather than silently dropping the picks.
-  const known=new Set(LIVE.teams.map(t=>t.id));
-  const shown=LIVE.teams.concat(
-    [...byTeam.keys()].filter(id=>!known.has(id)).map(id=>({id,name:'Team '+id,abbrev:''})));
-  const order=['QB','RB','WR','TE','K','D/ST','?'];
-  const cards=shown.map(t=>{
-    const picks=(byTeam.get(t.id)||[]).slice().sort((a,b)=>(a.overall||0)-(b.overall||0));
-    const lis=picks.map(pk=>{
-      const p=lookupPlayer(pk.playerId);
-      return `<li><span class="pk">${pickLabel(pk)}</span><span class="nm">${esc(p.name)}</span><span class="po">${esc(p.pos)}${p.team?' · '+esc(p.team):''}</span></li>`;
-    }).join('')||'<li><span class="nm" style="color:var(--ink-3);font-weight:500">No picks yet</span></li>';
-    const counts=order.map(o=>{
-      const n=picks.filter(pk=>lookupPlayer(pk.playerId).pos===o).length;
-      return n?`${o} ${n}`:'';
-    }).filter(Boolean).join(' · ');
-    return `<div class="rcard"><h3>${esc(t.name)}<span>${picks.length}</span></h3>
-      <ol>${lis}</ol>
-      ${counts?`<div style="padding:6px 10px;border-top:1px solid var(--line-soft);font-size:.62rem;color:var(--ink-3);font-weight:600">${esc(counts)}</div>`:''}
-    </div>`;
-  }).join('');
-  body.innerHTML=`<div class="rosters">${cards}</div>`;
+  if(state.view==='history')renderHistory();
+  if(state.view==='board')renderBoard();
 }
 
 function setLive(on){
   LIVE.on=on;
-  document.getElementById('rosters-btn').hidden=!on;
   if(on){
     pollDraft();
     LIVE.timer=setInterval(pollDraft,5000);
@@ -576,12 +605,118 @@ function setLive(on){
     clearInterval(LIVE.timer);LIVE.timer=null;
     LIVE.reachable=false;LIVE.picks=[];LIVE.byPlayer=new Map();LIVE.seen=-1;
     state.hideDrafted=false;
-    document.getElementById('rost-bg').classList.remove('show');
     render();
   }
   paintLive();
 }
 /* ========================== end live draft =========================== */
+
+/* ===================== Views: Pick History & Board =====================
+   Modelled on the ESPN draft room's own tabs, because that is the mental
+   model you already have open on the other monitor.                      */
+function setView(v){
+  state.view=v;
+  document.querySelectorAll('#views [data-view]').forEach(b=>b.classList.toggle('on',b.dataset.view===v));
+  document.getElementById('controls').classList.toggle('slim',v!=='players');
+  document.getElementById('view-players').hidden=(v!=='players');
+  document.getElementById('view-history').hidden=(v!=='history');
+  document.getElementById('view-board').hidden=(v!=='board');
+  document.getElementById('boardseg').hidden=(v!=='board');
+  if(v==='history')renderHistory();
+  if(v==='board')renderBoard();
+}
+
+function liveEmpty(what){
+  return `<div class="vempty"><b>No picks yet</b>
+    ${LIVE.on?esc(LIVE.message||'Waiting for the first pick…')
+             :'Turn on <b style="display:inline">Live Draft</b> and start draft_sync.py to see '+what+'.'}</div>`;
+}
+
+/* teams in draft order: whoever held each slot in round 1 */
+function draftOrder(){
+  const r1=LIVE.picks.filter(p=>p.round===1).sort((a,b)=>(a.roundPick||0)-(b.roundPick||0));
+  const out=[],seen=new Set();
+  r1.forEach(p=>{ if(!seen.has(p.teamId)){seen.add(p.teamId);out.push(p.teamId);} });
+  LIVE.teams.forEach(t=>{ if(!seen.has(t.id)){seen.add(t.id);out.push(t.id);} });
+  return out;
+}
+const teamName=id=>{const t=LIVE.teamById.get(id);return t?t.name:('Team '+id);};
+
+function renderHistory(){
+  const el=document.getElementById('view-history');
+  if(!LIVE.picks.length){el.innerHTML=liveEmpty('the pick history');return;}
+  const rounds=[...new Set(LIVE.picks.map(p=>p.round))].sort((a,b)=>a-b);
+  el.innerHTML=rounds.map(r=>{
+    const rows=LIVE.picks.filter(p=>p.round===r).sort((a,b)=>(a.roundPick||0)-(b.roundPick||0)).map(p=>{
+      const info=lookupPlayer(p.playerId);
+      const src=byId(p.playerId);
+      return `<tr>
+        <td class="l pk">${pickLabel(p)}</td>
+        <td class="l"><span class="nm">${esc(info.name)}</span>
+          <span class="sub"> ${esc(info.team||'')}${info.pos?' · '+esc(info.pos):''}</span></td>
+        <td class="l tm">${esc(teamName(p.teamId))}</td>
+        <td class="num">${src&&src.pts25!=null?fmt1(src.pts25):'<span class="dash">--</span>'}</td>
+        <td class="num">${src&&src.proj26!=null?fmt1(src.proj26):'<span class="dash">--</span>'}</td>
+      </tr>`;
+    }).join('');
+    return `<div class="hround">Round ${r}</div>
+      <table class="hist"><thead><tr>
+        <th class="l">Pick</th><th class="l">Player</th><th class="l">Team</th>
+        <th>2025 FPTS</th><th>2026 Proj</th></tr></thead><tbody>${rows}</tbody></table>`;
+  }).join('');
+}
+
+function boardCell(p){
+  if(!p)return '<div class="bcell empty"></div>';
+  const info=lookupPlayer(p.playerId);
+  return `<div class="bcell ${esc(info.pos||'')}">
+    <div class="p">${pickLabel(p)}</div>
+    <div class="n" title="${esc(info.name)}">${esc(info.name)}</div>
+    <div class="m">${esc(info.team||'')}${info.pos?' · '+esc(info.pos):''}</div></div>`;
+}
+
+function renderBoard(){
+  const el=document.getElementById('view-board');
+  document.querySelectorAll('#boardseg [data-bv]').forEach(b=>b.classList.toggle('on',b.dataset.bv===state.boardView));
+  if(!LIVE.picks.length){el.innerHTML=liveEmpty('the draft board');return;}
+  const order=draftOrder();
+  const head=`<tr><th class="rnd"></th>${order.map(id=>`<th>${esc(teamName(id))}</th>`).join('')}</tr>`;
+
+  if(state.boardView==='round'){
+    const byTR=new Map();                       // teamId -> round -> pick
+    LIVE.picks.forEach(p=>{
+      if(!byTR.has(p.teamId))byTR.set(p.teamId,new Map());
+      byTR.get(p.teamId).set(p.round,p);
+    });
+    const rounds=[...new Set(LIVE.picks.map(p=>p.round))].sort((a,b)=>a-b);
+    const body=rounds.map(r=>`<tr><td class="rnd">R${r}</td>${
+      order.map(id=>`<td>${boardCell((byTR.get(id)||new Map()).get(r))}</td>`).join('')}</tr>`).join('');
+    el.innerHTML=`<div class="bwrap"><table class="board"><thead>${head}</thead><tbody>${body}</tbody></table></div>`;
+    return;
+  }
+
+  // roster view: rows are position slots, columns are teams
+  const POSORDER=['QB','RB','WR','TE','D/ST','K'];
+  const byTeamPos=new Map();
+  order.forEach(id=>byTeamPos.set(id,{}));
+  LIVE.picks.forEach(p=>{
+    const info=lookupPlayer(p.playerId);
+    const pos=POSORDER.includes(info.pos)?info.pos:'BE';
+    const t=byTeamPos.get(p.teamId)||(byTeamPos.set(p.teamId,{}),byTeamPos.get(p.teamId));
+    (t[pos]=t[pos]||[]).push(p);
+  });
+  const rows=[];
+  POSORDER.concat(['BE']).forEach(pos=>{
+    const n=Math.max(...order.map(id=>((byTeamPos.get(id)||{})[pos]||[]).length),0);
+    for(let i=0;i<n;i++){
+      rows.push(`<tr><td class="rnd"><span class="bslot">${pos}</span></td>${
+        order.map(id=>`<td>${boardCell((((byTeamPos.get(id)||{})[pos])||[])[i])}</td>`).join('')}</tr>`);
+    }
+  });
+  el.innerHTML=`<div class="bwrap"><table class="board"><thead>${head}</thead><tbody>${rows.join('')}</tbody></table></div>`;
+}
+/* =================== end Pick History & Board views =================== */
+
 
 let DATA=[];let EXTRA={};
 
@@ -711,9 +846,11 @@ function detailHTML(p){
 function filtered(){
   const q=state.q.toLowerCase();
   let rows=DATA.filter(p=>
-    (state.pos==='All'||(state.pos==='FLX'?FLX.has(p.pos):p.pos===state.pos))&&
+    (state.pos==='All'||(state.pos==='FLX'?FLX.has(p.pos):state.pos==='RB/WR'?RBWR.has(p.pos):p.pos===state.pos))&&
     (!q||p.name.toLowerCase().includes(q)||p.team.toLowerCase().includes(q))&&
-    (!state.hideDrafted||!LIVE.byPlayer.has(p.id)));
+    // Hide-drafted never hides a search hit: if you type a name you want to
+    // find them, drafted or not.
+    (!state.hideDrafted||!!q||!LIVE.byPlayer.has(p.id)));
   const k=state.sortK,dir=state.sortDir;
   rows.sort((a,b)=>{
     const av=a[k],bv=b[k];
@@ -949,25 +1086,28 @@ function initCompare(){
   });
   document.addEventListener('keydown',e=>{
     if(e.key!=='Escape')return;
-    const rb=document.getElementById('rost-bg');
-    if(rb.classList.contains('show')){rb.classList.remove('show');document.body.style.overflow='';return;}
     closeModal();
   });
 
   // ---- live draft wiring ----
   document.getElementById('live-toggle').addEventListener('change',e=>setLive(e.target.checked));
-  const rostBg=document.getElementById('rost-bg');
-  const openRosters=()=>{buildRosters();rostBg.classList.add('show');document.body.style.overflow='hidden';};
-  const closeRosters=()=>{rostBg.classList.remove('show');document.body.style.overflow='';};
-  document.getElementById('rosters-btn').addEventListener('click',openRosters);
-  document.getElementById('livestat').addEventListener('click',()=>{if(LIVE.on)openRosters();});
-  document.getElementById('rost-close').addEventListener('click',closeRosters);
-  rostBg.addEventListener('click',e=>{if(e.target===rostBg)closeRosters();});
-  const availBtn=document.getElementById('rost-avail');
+  // Rosters used to be a modal that only appeared in live mode -- easy to miss,
+  // and a second place that showed the same thing as the board. It now just
+  // takes you to Board -> Roster View, which is where rosters live.
+  const goRosters=()=>{state.boardView='roster';setView('board');};
+  document.getElementById('rosters-btn').addEventListener('click',goRosters);
+  document.getElementById('livestat').addEventListener('click',()=>{if(LIVE.on)goRosters();});
+  document.getElementById('views').addEventListener('click',e=>{
+    const v=e.target.closest('[data-view]'); if(v){setView(v.dataset.view);return;}
+    const b=e.target.closest('[data-bv]');
+    if(b){state.boardView=b.dataset.bv;renderBoard();}
+  });
+
+  const availBtn=document.getElementById('avail-btn');
   availBtn.addEventListener('click',()=>{
     state.hideDrafted=!state.hideDrafted;
     availBtn.classList.toggle('on',state.hideDrafted);
-    availBtn.textContent=state.hideDrafted?'Showing available only':'Hide drafted on board';
+    availBtn.textContent=state.hideDrafted?'Showing available':'Hide drafted';
     render();
   });
   paintLive();
