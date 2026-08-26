@@ -26,8 +26,9 @@ Select up to 4 players for a side-by-side compare with best values highlighted.
 | `fetch_gamelogs.py` | Add weekly PPR game logs (2024/2025) |
 | `build_standalone.py` | Bundle it all into the standalone file |
 | `draft_sync.py` | Live draft helper — polls ESPN, feeds the Live Draft switch |
+| `extension/` | Chrome extension — auto-runs in any ESPN draft room (the easy way) |
 | `draft_room_scraper.js` | Draft-room companion (source for the bookmarklet) |
-| `bookmarklet.txt` | The one-line bookmarklet, with setup instructions |
+| `bookmarklet_url.txt` | The bookmarklet URL, one line — fallback if you'd rather not install |
 
 ## Two ways to run it
 
@@ -95,11 +96,21 @@ directly: mid-practice-draft the league still reports all 144 pick slots with
 `playerId: -1` and every roster empty. Those picks exist only inside the draft
 room page.
 
-So for those, a second source: `bookmarklet.txt` holds a one-line bookmarklet
-that reads the draft room's pick feed and POSTs new picks to the helper. Same
-`/api/draft` shape comes out, so the dashboard needs no idea where picks came
-from. Player names are matched back to real ESPN ids against `data.json`;
-anyone outside the top-300 snapshot still shows up on a roster.
+So for those, a second source: something inside the draft room that reads the
+pick feed and hands picks to the helper. Same `/api/draft` shape comes out, so
+the dashboard has no idea where picks came from. Player names are matched back
+to real ESPN ids against `data.json`; anyone outside the top-300 snapshot still
+shows up on a roster.
+
+**Install the extension** (`extension/README.txt`, ~30 seconds, once) and every
+draft room works automatically from then on. Chrome refuses every request from
+an HTTPS page to a local HTTP server — fetch, XHR and images alike — but an
+extension service worker with `host_permissions` is exempt, so picks go
+straight through.
+
+`bookmarklet_url.txt` is the no-install fallback. It has to open a small "sink"
+window and navigate it to smuggle picks past that same restriction, since a page
+may navigate a window it opened even when it can't fetch. Keep that window open.
 
 ```bash
 python3 draft_sync.py --room-only   # don't bother polling the API at all
