@@ -583,6 +583,17 @@ tr.pickmark span{
   font-size:.68rem;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--green);
 }
 tr.pickmark span::before{content:'';width:6px;height:6px;border-radius:50%;background:var(--green);flex-shrink:0}
+tr.pickmark.later span{
+  background:linear-gradient(90deg,rgba(10,125,51,.07),transparent);
+  border-top:1px dashed rgba(10,125,51,.5);border-bottom:0;
+  color:rgba(10,125,51,.75);font-size:.62rem;padding:3px 14px;
+}
+tr.pickmark.later span::before{width:4px;height:4px;opacity:.6}
+tr.pickmark.now span{
+  background:linear-gradient(90deg,rgba(10,125,51,.3),rgba(10,125,51,.06));
+  border-top:2px solid var(--green);border-bottom:2px solid var(--green);
+}
+#livestat.live .dot{background:var(--green)}
 </style>
 </head>
 <body>
@@ -773,7 +784,12 @@ function paintLive(){
     el.classList.add('warn');txt=`stale — last sync ${Math.round(LIVE.age)}s ago`;
   }else if(LIVE.status==='waiting'){el.classList.add('live');txt='connected · awaiting pick 1';}
   else if(LIVE.status==='complete'){txt=`draft complete · ${LIVE.picks.length} picks`;}
-  else{el.classList.add('live');txt=`${LIVE.picks.length} picks · synced ${Math.round(LIVE.age||0)}s ago`;}
+  else{
+    const mine=myPicks(1)[0];
+    if(mine&&mine.away===0){el.classList.add('live');txt='YOU ARE ON THE CLOCK';}
+    else if(mine){el.classList.add('live');txt=`${LIVE.picks.length} picks · you in ${mine.away}`;}
+    else{el.classList.add('live');txt=`${LIVE.picks.length} picks · synced ${Math.round(LIVE.age||0)}s ago`;}
+  }
   tx.textContent=txt;
   el.title=LIVE.message||txt;
 
@@ -1078,18 +1094,20 @@ function renderTicker(){
   if(!LIVE.on||!LIVE.picks.length){
     bar.hidden=true; row.innerHTML=''; TICK.rendered.clear(); return;
   }
+  const wasEmpty=!row.children.length;
   bar.hidden=false;
   const fresh=LIVE.picks.filter(p=>!TICK.rendered.has(p.round+'.'+p.roundPick))
                         .sort((a,b)=>(a.overall||0)-(b.overall||0));
   if(!fresh.length)return;
-  const wasAtFront=box.scrollLeft<=10;
-  const before=row.scrollWidth;
+  // Oldest on the left, newest arriving on the right, so it reads the way the
+  // draft ran. Appending doesn't move what's already there, so scrolled-back
+  // reading needs no compensation -- only follow along if you're at the end.
+  const wasAtEnd=(box.scrollLeft+box.clientWidth)>=(row.scrollWidth-12);
   fresh.forEach(p=>{
     TICK.rendered.add(p.round+'.'+p.roundPick);
-    row.insertAdjacentHTML('afterbegin',tickerCard(p,true));
+    row.insertAdjacentHTML('beforeend',tickerCard(p,true));
   });
-  if(wasAtFront)box.scrollLeft=0;
-  else box.scrollLeft += (row.scrollWidth-before);   // hold the reader's place
+  if(wasAtEnd||wasEmpty)box.scrollLeft=row.scrollWidth;
 }
 /* =================== end Pick History & Board views =================== */
 
@@ -1154,25 +1172,29 @@ function snakeTeamAt(overall,order){
   if(r%2===0)i=n-1-i;
   return order[i];
 }
-function myNextPick(){
-  if(!LIVE.on||!state.myTeam||!LIVE.picks.length)return null;
+function myPicks(limit){
+  if(!LIVE.on||!state.myTeam||!LIVE.picks.length)return [];
   const order=draftOrder();
-  if(!order.length)return null;
-  const made=LIVE.picks.length;
   const n=order.length;
-  for(let o=made+1;o<=made+n*2+1;o++){
-    if(String(snakeTeamAt(o,order))===String(state.myTeam)){
-      return {overall:o,away:o-(made+1),
-              round:Math.ceil(o/n),
-              slot:((Math.ceil(o/n)%2===0)?(n-((o-1)%n)):(((o-1)%n)+1))};
-    }
+  if(!n)return [];
+  const made=LIVE.picks.length;
+  const out=[];
+  for(let o=made+1;o<=n*18&&out.length<(limit||12);o++){
+    if(String(snakeTeamAt(o,order))!==String(state.myTeam))continue;
+    const r=Math.ceil(o/n);
+    const i=(o-1)%n;
+    out.push({overall:o,away:o-(made+1),round:r,slot:(r%2===0)?(n-i):(i+1)});
   }
-  return null;
+  return out;
 }
-function pickMarkerRow(info,colspan){
-  const label=info.away===0?'You are on the clock'
-    :`Your next pick · ${info.round}.${String(info.slot).padStart(2,'0')} · ${info.away} pick${info.away===1?'':'s'} away`;
-  return `<tr class="pickmark"><td colspan="${colspan}"><span>${label}</span></td></tr>`;
+function pickMarkerRow(info,colspan,isNext){
+  const at=`${info.round}.${String(info.slot).padStart(2,'0')}`;
+  const label=info.away===0
+    ? `You are on the clock · ${at}`
+    : (isNext?`Your next pick · ${at} · ${info.away} pick${info.away===1?'':'s'} away`
+             : `${at} · ${info.away} away`);
+  return `<tr class="pickmark${isNext?' next':' later'}${info.away===0?' now':''}">
+    <td colspan="${colspan}"><span>${label}</span></td></tr>`;
 }
 
 function rowHTML(p,i){
@@ -1381,14 +1403,16 @@ function render(){
   if(!rows.length){
     tb.innerHTML='<tr><td colspan="12"><div class="empty"><b>No players found</b>Try a different name or position filter.</div></td></tr>';
   }else{
-    const mark=myNextPick();
-    let seenAvail=0, placed=false;
+    const marks=myPicks();
+    let seenAvail=0, mi=0;
     tb.innerHTML=rows.map((p,i)=>{
       let out='';
-      if(mark&&!placed&&seenAvail>=mark.away){out+=pickMarkerRow(mark,12);placed=true;}
+      while(mi<marks.length&&seenAvail>=marks[mi].away){
+        out+=pickMarkerRow(marks[mi],12,mi===0);mi++;
+      }
       if(!LIVE.byPlayer.has(p.id))seenAvail++;
       return out+rowHTML(p,i)+(state.open.has(p.id)?detailHTML(p):'');
-    }).join('')+((mark&&!placed)?pickMarkerRow(mark,12):'');
+    }).join('')+marks.slice(mi).map((m,k)=>pickMarkerRow(m,12,mi+k===0)).join('');
   }
   document.getElementById('count').textContent=`Showing ${rows.length} of ${DATA.length} players`;
   document.querySelectorAll('th.sortable').forEach(th=>{
@@ -1672,7 +1696,7 @@ function initCompare(){
 
   document.getElementById('myteam').addEventListener('change',e=>{
     state.myTeam=e.target.value||null;
-    render();
+    render();paintLive();
   });
   document.getElementById('pc-close').addEventListener('click',closePlayerCard);
   document.getElementById('pc-body').addEventListener('click',e=>{
