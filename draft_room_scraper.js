@@ -8,7 +8,7 @@
   var EVERY = 1500;
   if (window.__ffScraper) { window.__ffScraper.stop(); }
 
-  var seen = Object.create(null), sent = 0, fails = 0;
+  var seen = Object.create(null), sent = 0, fails = 0, mode = 'auto';
 
   var box = document.createElement('div');
   box.style.cssText = 'position:fixed;z-index:2147483647;right:12px;bottom:12px;' +
@@ -49,18 +49,37 @@
       seen[k] = 1;
       fresh.push(p);
     }
-    fetch(HELPER, {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain' },   // avoids a CORS preflight
-      body: JSON.stringify(fresh)
-    }).then(function (r) { return r.json(); }).then(function (j) {
-      sent += fresh.length; fails = 0;
-      paint(sent + ' picks sent', '#4ade80');
-    }).catch(function () {
+    // Chrome's Private Network Access can refuse a public page's fetch to a
+    // local address. If it does, fall back to an <img> beacon: a plain GET,
+    // no CORS, no preflight, nothing for PNA to reject.
+    function beacon(rows, ok, bad) {
+      var b64 = btoa(unescape(encodeURIComponent(JSON.stringify(rows))))
+                  .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+      if (b64.length > 6000) { bad(); return; }
+      var img = new Image();
+      img.onload = ok;
+      img.onerror = bad;
+      img.src = HELPER + '?p=' + b64 + '&t=' + Date.now();
+    }
+
+    function won() { sent += fresh.length; fails = 0; paint(sent + ' picks sent', '#4ade80'); }
+    function lost() {
       fails++;
       for (var i = 0; i < fresh.length; i++) delete seen[fresh[i].round + '.' + fresh[i].pick];
-      paint('helper offline — is draft_sync.py running?', '#f87171');
-    });
+      paint('helper unreachable — is draft_sync.py running?', '#f87171');
+    }
+
+    if (mode !== 'beacon') {
+      fetch(HELPER, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain' },
+        body: JSON.stringify(fresh)
+      }).then(function (r) { return r.json(); })
+        .then(function () { mode = 'fetch'; won(); })
+        .catch(function () { mode = 'beacon'; beacon(fresh, won, lost); });
+    } else {
+      beacon(fresh, won, lost);
+    }
   }
 
   var timer = setInterval(scan, EVERY);

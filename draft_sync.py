@@ -33,6 +33,7 @@ auth error and the page shows it.
 """
 
 import argparse
+import base64
 import json
 import os
 import random
@@ -313,11 +314,17 @@ class Handler(SimpleHTTPRequestHandler):
         # The page may be opened straight from disk, whose origin is "null".
         self.send_header("Access-Control-Allow-Origin", "*")
         self.send_header("Cache-Control", "no-store")
+        # Chrome's Private Network Access: a page on a public origin (espn.com)
+        # reaching a local address is refused unless we opt in explicitly. This
+        # is the header that makes the draft-room bookmarklet possible at all.
+        self.send_header("Access-Control-Allow-Private-Network", "true")
 
     def do_OPTIONS(self):
         self.send_response(204)
         self._cors()
         self.send_header("Access-Control-Allow-Headers", "*")
+        self.send_header("Access-Control-Allow-Methods", "GET,POST,OPTIONS")
+        self.send_header("Access-Control-Max-Age", "86400")
         self.end_headers()
 
     def do_POST(self):
@@ -343,6 +350,33 @@ class Handler(SimpleHTTPRequestHandler):
         self.wfile.write(body)
 
     def do_GET(self):
+        # Image-beacon fallback for browsers that refuse the cross-origin POST.
+        # An <img> request is a plain navigation-style GET: no CORS, no preflight.
+        if self.path.split("?")[0] == "/api/ingest":
+            added = 0
+            try:
+                from urllib.parse import urlparse, parse_qs
+                q = parse_qs(urlparse(self.path).query)
+                blob = (q.get("p") or [""])[0]
+                if blob:
+                    pad = "=" * (-len(blob) % 4)
+                    rows = json.loads(base64.urlsafe_b64decode(blob + pad).decode())
+                    added = INGEST.add(rows if isinstance(rows, list) else []) if INGEST else 0
+                elif INGEST:
+                    INGEST.add([])                      # heartbeat
+            except Exception as e:
+                print("beacon ingest failed:", e, file=sys.stderr)
+            png = base64.b64decode(
+                b"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==")
+            self.send_response(200)
+            self.send_header("Content-Type", "image/png")
+            self.send_header("Content-Length", str(len(png)))
+            self.send_header("X-Added", str(added))
+            self._cors()
+            self.end_headers()
+            self.wfile.write(png)
+            return
+
         if self.path.split("?")[0] == "/api/draft":
             body = json.dumps(merged()).encode()
             self.send_response(200)
