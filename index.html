@@ -393,7 +393,9 @@ table.hist tr.mine .tm{color:var(--green)}
 
 /* ---------- Board ---------- */
 .bwrap{overflow-y:auto;overflow-x:hidden;max-height:76vh;padding:6px 8px 10px}
-body.boardwide .page{max-width:min(1900px,97vw)}
+body.boardwide .page,body.histwide .page{max-width:min(1900px,97vw)}
+table.hist td,table.hist th{overflow:hidden}
+table.hist td.l .nm,table.hist td.l .sub,table.hist td.tm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 table.board th{font-size:.62rem;padding:6px 4px;overflow:hidden;text-overflow:ellipsis}
 .limbox{min-width:0}
 table.board{border-collapse:collapse;table-layout:fixed;width:100%}
@@ -463,7 +465,7 @@ table.board .rnd{
 @media (max-width:700px){.tk-label{display:none}}
 
 /* pick history: one table, no column drift */
-.hwrap{max-height:72vh;overflow:auto}
+.hwrap{max-height:72vh;overflow-y:auto;overflow-x:hidden}
 table.hist{table-layout:fixed}
 table.hist thead th{position:sticky;top:0;background:#fff;z-index:2}
 table.hist td.l .nm{display:block}
@@ -548,6 +550,22 @@ tr.dnprow .pts{font-weight:700;font-size:.62rem;letter-spacing:.04em}
 .nsrc.espn{background:#eef4ff;color:#0554aa}
 .nsrc.rw{background:#fff1e6;color:#a4551a}
 .nsub{font-weight:500;text-transform:none;letter-spacing:0;color:var(--ink-3);font-size:.66rem}
+
+.depth{grid-column:1/-1;border-top:1px solid var(--line-soft);padding:12px 20px 16px}
+.dcstaff{display:flex;gap:18px;flex-wrap:wrap;margin:6px 0 10px}
+.dcstaff div{display:flex;flex-direction:column;gap:1px}
+.dcstaff span{font-size:.56rem;font-weight:800;letter-spacing:.06em;color:var(--ink-3);text-transform:uppercase}
+.dcstaff b{font-size:.78rem;font-weight:700;color:var(--ink)}
+.dcgrp{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:5px}
+.dclabel{font-size:.56rem;font-weight:800;letter-spacing:.06em;color:var(--ink-3);width:24px;flex-shrink:0}
+.dcp{
+  display:inline-flex;align-items:baseline;gap:6px;border:1px solid var(--line);background:#fff;
+  border-radius:999px;padding:3px 9px;font:inherit;cursor:pointer;
+}
+.dcp:hover{border-color:var(--blue);background:var(--hover)}
+.dcn{font-size:.72rem;font-weight:700;color:var(--ink)}
+.dcr{font-size:.6rem;font-weight:700;color:var(--ink-3);font-variant-numeric:tabular-nums}
+.pcard .depth{padding:12px 0 4px}
 </style>
 </head>
 <body>
@@ -776,6 +794,7 @@ function setView(v){
   document.getElementById('controls').classList.toggle('slim',v!=='players');
   document.body.classList.toggle('notplayers',v!=='players');
   document.body.classList.toggle('boardwide',v==='board');
+  document.body.classList.toggle('histwide',v==='history');
   document.getElementById('view-players').hidden=(v!=='players');
   document.getElementById('view-history').hidden=(v!=='history');
   document.getElementById('view-board').hidden=(v!=='board');
@@ -825,8 +844,8 @@ function renderHistory(){
       }).join('');
   }).join('');
   el.innerHTML=`<div class="hwrap"><table class="hist"><colgroup>
-      <col style="width:64px"><col><col style="width:24%">
-      <col style="width:96px"><col style="width:96px"></colgroup>
+      <col style="width:58px"><col style="width:38%"><col>
+      <col style="width:11%"><col style="width:11%"></colgroup>
     <thead><tr><th class="l">Pick</th><th class="l">Player</th><th class="l">Team</th>
       <th>2025 FPTS</th><th>2026 Proj</th></tr></thead><tbody>${body}</tbody></table></div>`;
   const w=el.querySelector('.hwrap'); if(w)w.scrollTop=top;
@@ -1126,6 +1145,38 @@ function projBox(label,proj,prior,note){
     <span>${label}</span></div>`;
 }
 
+
+/* Team context for a player: who calls the plays, and who else is competing
+   for the ball. Derived from the board's own rankings, so it always agrees
+   with the rest of the page; coaches come from the 32-entry map in data.json. */
+function depthChart(p){
+  const staff=(EXTRA.coaches||{})[p.team]||{};
+  const mates=(pos,n)=>DATA
+    .filter(x=>x.team===p.team&&x.pos===pos&&x.id!==p.id)
+    .sort((a,b)=>(a.rank??9999)-(b.rank??9999))
+    .slice(0,n);
+  const grp=(label,pos,n)=>{
+    const list=mates(pos,n);
+    if(!list.length)return '';
+    return `<div class="dcgrp"><div class="dclabel">${label}</div>${
+      list.map(x=>`<button class="dcp" data-pid="${x.id}">
+        <span class="dcn">${esc(x.name)}</span>
+        <span class="dcr">${x.rank!=null?'#'+x.rank:'--'}</span></button>`).join('')}</div>`;
+  };
+  const same=p.pos;
+  const counts={WR:3,RB:2,TE:2};
+  // one extra at the player's own position, since that's the room they're in
+  if(counts[same]!=null)counts[same]=counts[same];
+  return `<div class="depth">
+    <div class="dtitle">${esc(p.team)} Depth <span style="font-weight:500;text-transform:none;letter-spacing:0">· others at each spot</span></div>
+    <div class="dcstaff">
+      <div><span>HC</span><b>${staff.hc?esc(staff.hc):'--'}</b></div>
+      <div><span>OC</span><b>${staff.oc?esc(staff.oc):'--'}</b></div>
+    </div>
+    ${grp('WR','WR',counts.WR)}${grp('RB','RB',counts.RB)}${grp('TE','TE',counts.TE)}
+  </div>`;
+}
+
 function detailInner(p){
   const news=(p.news||[]).slice(0,10);
   const newsList=news.length?news.map(n=>`
@@ -1210,6 +1261,7 @@ function detailInner(p){
       ${p.outlook?`<div class="dtitle">2026 Outlook</div><div class="outlook">${esc(p.outlook)}</div>`:''}
     </div>
     <div class="dlogs">${schedBox()}${glTable(p.g25,2025,p.bye25,p.gp25)}${glTable(p.g24,2024,p.bye24,null)}</div>
+    ${depthChart(p)}
   </div>`;
 }
 function detailHTML(p){
@@ -1253,7 +1305,7 @@ function render(){
 
 function init(data){
   DATA=data.players;
-  EXTRA={sched26:data.sched26||{},oppRk:data.oppRk||{}};
+  EXTRA={sched26:data.sched26||{},oppRk:data.oppRk||{},coaches:data.coaches||{}};
   document.getElementById('meta-count').textContent=DATA.length;
   const gd=new Date(data.generated);
   document.getElementById('meta-date').textContent=isNaN(gd)?'':('updated '+gd.toLocaleDateString('en-US',{month:'short',day:'numeric'}));
@@ -1510,6 +1562,9 @@ function initCompare(){
   });
 
   document.getElementById('pc-close').addEventListener('click',closePlayerCard);
+  document.getElementById('pc-body').addEventListener('click',e=>{
+    const d=e.target.closest('.dcp[data-pid]'); if(d)openPlayer(+d.dataset.pid);
+  });
 
   const availBtn=document.getElementById('avail-btn');
   availBtn.addEventListener('click',()=>{
