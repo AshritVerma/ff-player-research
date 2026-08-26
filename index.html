@@ -76,14 +76,14 @@ body{
 
 /* ---------- Table ---------- */
 .table-wrap{overflow-x:auto;overscroll-behavior-x:contain}
-table{width:100%;border-collapse:separate;border-spacing:0;min-width:1220px}
+table{width:100%;border-collapse:separate;border-spacing:0;min-width:1180px}
 thead th{
   position:sticky;z-index:5;background:var(--group-bg);
   font-size:.62rem;font-weight:700;letter-spacing:.09em;text-transform:uppercase;
-  color:var(--ink-3);text-align:right;padding:7px 12px;border-bottom:1px solid var(--line);
+  color:var(--ink-3);text-align:right;padding:7px 8px;border-bottom:1px solid var(--line);
   white-space:nowrap;user-select:none;
 }
-thead tr.groups th{top:0;border-bottom:1px solid var(--line-soft);padding:6px 12px;font-size:.6rem;color:var(--ink-3)}
+thead tr.groups th{top:0;border-bottom:1px solid var(--line-soft);padding:6px 8px;font-size:.6rem;color:var(--ink-3)}
 thead tr.cols th{top:26px}
 @media (min-width:1260px){
   .table-wrap{overflow:visible}
@@ -100,7 +100,7 @@ th.sortable:hover .arr:empty::after{content:'\25BC';opacity:.4;font-size:.9em}
 th.sorted{color:var(--blue)}
 th .arr{font-size:.55rem;margin-left:2px}
 th.gdiv,td.gdiv{border-left:1px solid var(--line)}
-tbody td{padding:9px 12px;border-bottom:1px solid var(--line-soft);text-align:right;vertical-align:middle;background:#fff}
+tbody td{padding:9px 8px;border-bottom:1px solid var(--line-soft);text-align:right;vertical-align:middle;background:#fff}
 tbody tr.p-row{cursor:pointer}
 tbody tr.p-row:hover td{background:var(--hover)}
 tbody tr.p-row.open td{background:#eef5fc;border-bottom-color:#d7e6f5}
@@ -117,11 +117,16 @@ td.rk{color:var(--ink-3);font-size:.72rem;width:38px}
 .pname{font-weight:700;color:var(--blue);font-size:.8125rem;line-height:1.25;white-space:nowrap}
 .psub{font-size:.68rem;color:var(--ink-3);font-weight:500}
 .psub b{color:var(--ink-2);font-weight:600}
+.agetag{display:inline-block;margin-left:5px;padding:0 4px;border-radius:3px;
+  background:var(--line-soft,#eef1f4);color:var(--ink-3);font-size:.9em;
+  font-weight:600;font-variant-numeric:tabular-nums;letter-spacing:.01em}
+.agetag::before{content:'';}
+.pc-id .agetag{font-size:.85em}
 .itag{
   display:inline-block;margin-left:5px;font-size:.6rem;font-weight:800;color:var(--injury);
 }
 /* news cell */
-.ncell{max-width:340px;min-width:240px}
+.ncell{max-width:320px;min-width:215px}
 .nhead{
   display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;
   font-size:.75rem;color:var(--ink);line-height:1.35;
@@ -244,10 +249,13 @@ td.cmp-td{width:34px;padding:9px 4px 9px 12px}
   background:var(--espn-dark);color:#fff;flex-shrink:0;
 }
 .mhead h2{font-size:.9rem;font-weight:800;letter-spacing:.02em}
-.mseg{display:flex;gap:2px;background:var(--espn-dark2);border-radius:6px;padding:3px;margin-left:auto}
-.mseg button{border:0;background:transparent;color:#9aa3ab;font:inherit;font-size:.7rem;font-weight:700;padding:5px 10px;border-radius:4px;cursor:pointer}
-.mseg button.on{background:#fff;color:var(--espn-dark)}
-.mclose{border:0;background:transparent;color:#9aa3ab;cursor:pointer;font-size:1.15rem;line-height:1;padding:4px}
+.schedcell{font-weight:600;font-size:.76rem}
+.schedcell.mE{background:rgba(46,125,50,.10);color:var(--green)}
+.schedcell.mH{background:rgba(204,0,0,.08);color:var(--injury)}
+.schedcell .tt{display:block;font-size:.6rem;font-weight:600;color:var(--ink-3);margin-top:1px}
+.schedcell.mE .tt,.schedcell.mH .tt{color:inherit;opacity:.75}
+.byecell{color:var(--ink-3);font-style:italic;font-size:.72rem}
+.mclose{margin-left:auto;border:0;background:transparent;color:#9aa3ab;cursor:pointer;font-size:1.15rem;line-height:1;padding:4px}
 .mclose:hover{color:#fff}
 .mbody{overflow:auto;overscroll-behavior:contain}
 .cmp-grid{width:100%;border-collapse:separate;border-spacing:0;min-width:560px}
@@ -382,7 +390,7 @@ tr.p-row.drafted td:not(.l){opacity:.45}
   font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-3);
   padding:10px 20px 6px;background:var(--group-bg);border-bottom:1px solid var(--line-soft);
 }
-table.hist{width:100%;border-collapse:collapse}
+table.hist{width:100%;border-collapse:collapse;min-width:0}
 table.hist th{
   font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-3);
   text-align:right;padding:7px 10px;border-bottom:1px solid var(--line-soft);
@@ -398,13 +406,13 @@ table.hist tr.mine td{background:#f0fbf3}
 table.hist tr.mine .tm{color:var(--green)}
 
 /* ---------- Board ---------- */
-.bwrap{overflow-y:auto;overflow-x:hidden;max-height:76vh;padding:6px 8px 10px}
+.bwrap{overflow-y:auto;overflow-x:auto;max-height:76vh;padding:6px 8px 10px}
 body.boardwide .page,body.histwide .page{max-width:min(1900px,97vw)}
 table.hist td,table.hist th{overflow:hidden}
 table.hist td.l .nm,table.hist td.l .sub,table.hist td.tm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 table.board th{font-size:.62rem;padding:6px 4px;overflow:hidden;text-overflow:ellipsis}
 .limbox{min-width:0}
-table.board{border-collapse:collapse;table-layout:fixed;width:100%}
+table.board{border-collapse:collapse;table-layout:fixed;width:100%;min-width:0}
 table.board th{
   position:sticky;top:0;z-index:2;background:#fff;font-size:.66rem;font-weight:700;color:var(--ink-2);
   padding:6px 8px;white-space:nowrap;text-align:center;border-bottom:1px solid var(--line);
@@ -471,7 +479,7 @@ table.board .rnd{
 @media (max-width:700px){.tk-label{display:none}}
 
 /* pick history: one table, no column drift */
-.hwrap{max-height:72vh;overflow-y:auto;overflow-x:hidden}
+.hwrap{max-height:72vh;overflow-y:auto;overflow-x:auto}
 table.hist{table-layout:fixed}
 table.hist thead th{position:sticky;top:0;background:#fff;z-index:2}
 table.hist td.l .nm{display:block}
@@ -708,10 +716,6 @@ tr.pickmark.now span{
     <div class="modal" role="dialog" aria-label="Compare players">
       <div class="mhead">
         <h2>Compare Players</h2>
-        <div class="mseg" id="mseg">
-          <button data-v="25">2025 Season</button>
-          <button data-v="26">2026 Projections</button>
-        </div>
         <button class="mclose" id="mclose" aria-label="Close">✕</button>
       </div>
       <div class="mbody" id="mbody"></div>
@@ -731,7 +735,7 @@ tr.pickmark.now span{
 const POS_TABS=['All','QB','RB','WR','RB/WR','TE','FLX','K','D/ST'];
 const FLX=new Set(['RB','WR','TE']);
 const RBWR=new Set(['RB','WR']);
-const state={pos:'All',q:'',sortK:'adpRank',sortDir:1,open:new Set(),cmp:[],cmpView:'25',hideDrafted:false,view:'players',boardView:'round',myTeam:null,found:null};
+const state={pos:'All',q:'',sortK:'adpRank',sortDir:1,open:new Set(),cmp:[],hideDrafted:false,view:'players',boardView:'round',myTeam:null,found:null};
 
 /* ============================ Live draft =============================
    The board cannot read a private ESPN league itself -- the draft endpoint
@@ -1010,7 +1014,7 @@ function openPlayer(id,keepScroll){
   const d=LIVE.byPlayer.get(p.id);
   document.getElementById('pc-id').innerHTML=`${headshot(p).replace(' class="hs"','').replace('class="hs logo-img"','class="logo-img"')}
     <div><div class="nm">${esc(p.name)}${ITAG[p.injuryStatus]?`<span class="itag">${ITAG[p.injuryStatus]}</span>`:''}</div>
-    <div class="sub">${esc(p.team)} · ${esc(p.pos)}${d?` · <b style="color:var(--red)">taken ${pickLabel(d)} by ${esc(teamName(d.teamId))}</b>`:''}</div></div>`;
+    <div class="sub">${esc(p.team)} · ${esc(p.pos)}${ageTag(p)}${d?` · <b style="color:var(--red)">taken ${pickLabel(d)} by ${esc(teamName(d.teamId))}</b>`:''}</div></div>`;
   document.getElementById('pc-strip').innerHTML=`
     <div><button class="pc-find" data-pid="${p.id}" title="Show this player in the full list">
       <b>${p.adpRank??'--'}</b><span>Draft RK &#8599;</span></button></div>
@@ -1019,8 +1023,12 @@ function openPlayer(id,keepScroll){
     <div><b>${p.pctOwned!=null?p.pctOwned.toFixed(0)+'%':'--'}</b><span>%Rost</span></div>`;
   const body=document.getElementById('pc-body');
   const keep=keepScroll?body.scrollTop:0;
+  // the news list scrolls inside the card, so it needs remembering separately
+  const oldNews=keepScroll?body.querySelector('.nscroll'):null;
+  const keepNews=oldNews?oldNews.scrollTop:0;
   body.innerHTML=detailInner(p);
   body.scrollTop=keep;
+  if(keepNews){const n=body.querySelector('.nscroll'); if(n)n.scrollTop=keepNews;}
   card.hidden=false;
 }
 function closePlayerCard(){document.getElementById('pcard').hidden=true;}
@@ -1277,7 +1285,7 @@ function rowHTML(p,i){
     <td class="l rk num">${p.rank??i+1}</td>
     <td class="l"><div class="pcell">${headshot(p)}<div>
       <div class="pname">${esc(p.name)}${itag}${draftBadge(drafted)}</div>
-      <div class="psub"><b>${p.team}</b> · ${p.pos}</div>
+      <div class="psub"><b>${p.team}</b> · ${p.pos}${ageTag(p)}</div>
     </div></div></td>
     <td class="l ncell">${n?`<div class="nhead">${esc(n.h)}</div><div class="ntime">${timeAgo(n.t)}</div>`:'<span class="nnone">No recent news</span>'}</td>
     <td class="num big gdiv">${fmt1(p.proj26)??'<span class="dash">--</span>'}</td>
@@ -1466,7 +1474,29 @@ function filtered(){
   return rows;
 }
 
+/* Live picks insert and remove pick-marker rows all over the list, which used
+   to shift everything below them -- the row you were reading slid up or down a
+   line every few seconds. Pin the first row you can see and put it back where
+   it was once the new markup is in. */
+function listAnchor(){
+  if(state.view!=='players')return null;
+  const rows=document.querySelectorAll('#tbody tr.p-row');
+  for(const r of rows){
+    const t=r.getBoundingClientRect().top;
+    if(t>0)return {id:r.dataset.id,top:t};
+  }
+  return null;
+}
+function restoreAnchor(a){
+  if(!a)return;
+  const r=document.querySelector(`#tbody tr.p-row[data-id="${a.id}"]`);
+  if(!r)return;
+  const d=r.getBoundingClientRect().top-a.top;
+  if(Math.abs(d)>1)window.scrollBy(0,d);
+}
+
 function render(){
+  const anchor=listAnchor();
   const rows=filtered();
   const tb=document.getElementById('tbody');
   if(!rows.length){
@@ -1483,6 +1513,7 @@ function render(){
       return out+rowHTML(p,i)+(state.open.has(p.id)?detailHTML(p):'');
     }).join('')+marks.slice(mi).map((m,k)=>pickMarkerRow(m,12,mi+k===0)).join('');
   }
+  restoreAnchor(anchor);
   document.getElementById('count').textContent=`Showing ${rows.length} of ${DATA.length} players`;
   document.querySelectorAll('th.sortable').forEach(th=>{
     const on=th.dataset.k===state.sortK;
@@ -1577,7 +1608,21 @@ const SECTIONS=[
   ['Defense / ST',[['Sacks','99'],['Interceptions','95'],['Fumbles Recovered','96'],['Defensive TD','105'],['Points Allowed','120',true],['Yards Allowed','127',true]]],
   ['Ball Security',[['Fumbles Lost','72',true]]],
 ];
-const rawOf=p=>state.cmpView==='25'?(p.raw25||{}):(p.raw26||{});
+/* Age from date of birth, worked out at render time. data.json stores the
+   birthday, not the age, so the number is right whenever you open this. */
+function ageOf(p){
+  if(!p.dob)return null;
+  const [y,m,d]=p.dob.split('-').map(Number);
+  if(!y)return null;
+  const now=new Date();
+  let a=now.getFullYear()-y;
+  const mo=now.getMonth()+1, day=now.getDate();
+  if(mo<m||(mo===m&&day<d))a--;
+  return (a>0&&a<60)?a:null;
+}
+const ageTag=p=>{const a=ageOf(p);return a?`<span class="agetag">${a}</span>`:'';};
+
+const rawOf=(p,yr)=>yr==='25'?(p.raw25||{}):(p.raw26||{});
 const fmtStat=v=>v==null?null:(Math.abs(v-Math.round(v))<.05?Math.round(v).toLocaleString():v.toFixed(1));
 
 function bestMark(vals,low){
@@ -1586,27 +1631,27 @@ function bestMark(vals,low){
   const best=low?Math.min(...nums):Math.max(...nums);
   return vals.map(v=>v!=null&&v===best);
 }
-const gamesOf=p=>state.cmpView==='25'?(p.gp25||null):17;
-function statRow(label,key,low,ps){
+const gamesOf=(p,yr)=>yr==='25'?(p.gp25||null):17;
+function statRow(label,key,low,ps,yr){
   let vals,cells;
   if(key.includes('/')){
     const [a,b]=key.split('/');
-    vals=ps.map(p=>rawOf(p)[a]??null);
+    vals=ps.map(p=>rawOf(p,yr)[a]??null);
     const mk=bestMark(vals,low);
     cells=ps.map((p,i)=>{
-      const va=rawOf(p)[a],vb=rawOf(p)[b];
+      const va=rawOf(p,yr)[a],vb=rawOf(p,yr)[b];
       if(va==null&&vb==null)return'<td><span class="dash">--</span></td>';
       return `<td class="num ${mk[i]?'best':''}">${fmtStat(va)??0} / ${fmtStat(vb)??0}</td>`;
     });
   }else{
     // per-game true average first (stat ÷ games actually played), season total second
-    const avgs=ps.map(p=>{const v=rawOf(p)[key],g=gamesOf(p);return(v==null||!g)?null:v/g;});
+    const avgs=ps.map(p=>{const v=rawOf(p,yr)[key],g=gamesOf(p,yr);return(v==null||!g)?null:v/g;});
     vals=avgs;
     if(vals.every(v=>v==null))return'';
     const mk=bestMark(vals,low);
     cells=ps.map((p,i)=>{
       if(vals[i]==null)return'<td><span class="dash">--</span></td>';
-      const tot=rawOf(p)[key];
+      const tot=rawOf(p,yr)[key];
       return `<td class="num ${mk[i]?'best':''}">${vals[i].toFixed(1)}<span class="tt">${fmtStat(tot)} tot</span></td>`;
     });
   }
@@ -1622,11 +1667,10 @@ function summaryRow(label,getter,ps,{low=false,fmt=fmt1}={}){
 function buildModal(){
   const ps=state.cmp.map(byId).filter(Boolean);
   const mb=document.getElementById('mbody');
-  document.querySelectorAll('#mseg button').forEach(b=>b.classList.toggle('on',b.dataset.v===state.cmpView));
   const head=`<tr><th class="lbl"></th>${ps.map(p=>`<th class="cmp-player">
       ${p.pos==='D/ST'?`<img class="logo-img" src="https://a.espncdn.com/i/teamlogos/nfl/500/${p.team.toLowerCase()}.png" alt="">`:`<img src="https://a.espncdn.com/i/headshots/nfl/players/full/${p.id}.png" alt="">`}
       <div class="nm">${esc(p.name)}${ITAG[p.injuryStatus]?`<span class="itag">${ITAG[p.injuryStatus]}</span>`:''}</div>
-      <div class="tm">${p.team} · ${p.pos}</div>
+      <div class="tm">${p.team} · ${p.pos}${ageTag(p)}</div>
       <button class="rm" data-rm="${p.id}">remove</button>
     </th>`).join('')}</tr>`;
   const nsec=ps.length+1;
@@ -1642,11 +1686,40 @@ function buildModal(){
     +summaryRow('Draft Rank',p=>p.adpRank,ps,{low:true,fmt:v=>'#'+v})
     +summaryRow('ESPN Rank',p=>p.rank,ps,{low:true,fmt:v=>'#'+v})
     +summaryRow('2026 SOS',p=>p.sos,ps,{fmt:v=>(Math.round(v*100)/100)+' / 5'});
-  const yr=state.cmpView==='25'?'2025':'2026 Projected';
-  const secs=SECTIONS.map(([title,rows])=>{
-    const body=rows.map(([l,k,low])=>statRow(l,k,low,ps)).join('');
-    return body?`<tr class="sec"><td colspan="${nsec}">${title} — ${yr} <span style="font-weight:500;text-transform:none;letter-spacing:0">· per-game avg (season total)</span></td></tr>`+body:'';
+  // Both years render inline. This used to be a segmented control at the top of
+  // the modal, which meant you could never see last season and next season's
+  // projection side by side -- the one thing you open a comparison for.
+  const yearSecs=(yr,label)=>SECTIONS.map(([title,rows])=>{
+    const body=rows.map(([l,k,low])=>statRow(l,k,low,ps,yr)).join('');
+    return body?`<tr class="sec"><td colspan="${nsec}">${title} — ${label} <span style="font-weight:500;text-transform:none;letter-spacing:0">· per-game avg (season total)</span></td></tr>`+body:'';
   }).join('');
+  const secs=yearSecs('26','2026 Projected')+yearSecs('25','2025');
+
+  // Week-by-week 2026 schedule, one column per player, coloured the way the
+  // player card does it: green = a defence that gives up points to his
+  // position, red = one that does not.
+  const schedSec=()=>{
+    const sch=ps.map(p=>{
+      const list=(EXTRA.sched26||{})[p.team]||[];
+      const by={}; list.forEach(g=>by[g[0]]=g[1]);
+      return by;
+    });
+    if(sch.every(m=>!Object.keys(m).length))return'';
+    const rows=[];
+    for(let w=1;w<=18;w++){
+      const cells=ps.map((p,i)=>{
+        const opp=sch[i][w];
+        if(!opp)return'<td class="num byecell">BYE</td>';
+        const ab=opp.replace('@','');
+        const or=((EXTRA.oppRk||{})[ab]||{})[p.pos];
+        const cls=or&&or[1]==='easy'?'mE':(or&&or[1]==='hard'?'mH':'');
+        return `<td class="num schedcell ${cls}">${esc(opp)}<span class="tt">${or?'rk '+or[0]:'--'}</span></td>`;
+      }).join('');
+      rows.push(`<tr><td class="lbl">Wk ${w}</td>${cells}</tr>`);
+    }
+    return `<tr class="sec"><td colspan="${nsec}">2026 Schedule <span style="font-weight:500;text-transform:none;letter-spacing:0">· opponent rank vs that player's position — green is a favourable matchup, red a tough one</span></td></tr>`
+      +rows.join('');
+  };
   // Game logs render for every compared player (2-4). This used to be gated on
   // ps.length===2 and destructured [a,b], so selecting a third player silently
   // dropped both game-log sections.
@@ -1678,7 +1751,7 @@ function buildModal(){
     }).join('');
     return `<tr class="sec"><td colspan="${nsec}">Game Log — ${season} <span style="font-weight:500;text-transform:none;letter-spacing:0">· PPR points</span></td></tr>${rows}<tr><td class="lbl">Total</td>${totals}</tr>`;
   };
-  const gls=glSec('g25',2025)+glSec('g24',2024);
+  const gls=schedSec()+glSec('g25',2025)+glSec('g24',2024);
   mb.innerHTML=`<table class="cmp-grid"><thead>${head}</thead><tbody>${fantasy}${secs}${gls}</tbody></table>`;
 }
 function openModal(){
@@ -1709,10 +1782,6 @@ function initCompare(){
     if(e.target===bg)closeModal();
   });
   document.getElementById('mclose').addEventListener('click',closeModal);
-  document.getElementById('mseg').addEventListener('click',e=>{
-    const b=e.target.closest('button');if(!b)return;
-    state.cmpView=b.dataset.v;buildModal();
-  });
   document.addEventListener('keydown',e=>{
     if(e.key!=='Escape')return;
     if(!document.getElementById('pcard').hidden){closePlayerCard();return;}
