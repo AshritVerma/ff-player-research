@@ -8,8 +8,8 @@ headshot / team logo, and the Inter font are all embedded.
 It stays online-first at runtime. When the machine has a network connection the
 page behaves exactly like index.html -- it fetches data.json, pulls headshots
 from a.espncdn.com and Inter from Google Fonts. The embedded copies are only
-used when one of those requests actually fails, so an offline (or Perplexity-is-
-down, or ESPN-is-down) load still renders identically.
+used when one of those requests actually fails, so an offline (or Google-Fonts-
+is-down, or ESPN-is-down) load still renders identically.
 
 Usage:
     python3 build_standalone.py                 # build from ./index.html + ./data.json
