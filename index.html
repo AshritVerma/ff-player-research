@@ -433,6 +433,8 @@ table.board .rnd{
   border:1px solid #3a3e42;border-radius:7px;padding:5px 10px 5px 6px;min-width:180px;
 }
 .tick.fresh{animation:tkin .45s ease}
+.tick.clickable{cursor:pointer}
+.tick.clickable:hover{border-color:#5b6167;background:#33373b}
 @keyframes tkin{from{opacity:0;transform:translateX(-10px)}to{opacity:1;transform:none}}
 .tick .tkhs{width:34px;height:25px;border-radius:4px;object-fit:cover;object-position:top;background:#3a3e42;flex-shrink:0}
 .tick .tkhs.logo-img{object-fit:contain;padding:2px;background:#fff}
@@ -446,6 +448,29 @@ table.board .rnd{
 .tk-f{font-size:.62rem;color:#7c848c;font-weight:600;white-space:nowrap;
   max-width:150px;overflow:hidden;text-overflow:ellipsis}
 @media (max-width:700px){.tk-label{display:none}}
+
+/* pick history: one table, no column drift */
+.hwrap{max-height:72vh;overflow:auto}
+table.hist{table-layout:fixed}
+table.hist thead th{position:sticky;top:0;background:#fff;z-index:2}
+table.hist td.l .nm{display:block}
+table.hist td.l .sub{display:block}
+tr.hsec td{
+  background:var(--group-bg);font-size:.66rem;font-weight:700;text-transform:uppercase;
+  letter-spacing:.06em;color:var(--ink-3);padding:7px 10px;position:sticky;top:29px;z-index:1;
+}
+tr.clickable{cursor:pointer}
+tr.clickable:hover td{background:var(--hover)}
+tr.p-row.flash td{animation:flashrow 1.2s ease}
+@keyframes flashrow{0%,40%{background:#fff6d8}100%{background:transparent}}
+.bcell.clickable{cursor:pointer}
+.bcell.clickable:hover{border-color:var(--blue);box-shadow:0 0 0 2px rgba(6,104,208,.14)}
+/* roster limits row */
+.limbox{border:1px solid var(--line-soft);border-radius:6px;padding:6px 7px;background:#fff;min-width:118px}
+.limhead{font-size:.6rem;font-weight:700;color:var(--ink-3);margin-bottom:3px}
+.lim{display:inline-block;font-size:.6rem;font-weight:600;color:var(--ink-3);margin:0 6px 2px 0;white-space:nowrap}
+.lim b{color:var(--ink-2);font-weight:700}
+.lim.full b{color:var(--red)}
 </style>
 </head>
 <body>
@@ -688,77 +713,131 @@ const teamName=id=>{const t=LIVE.teamById.get(id);return t?t.name:('Team '+id);}
 function renderHistory(){
   const el=document.getElementById('view-history');
   if(!LIVE.picks.length){el.innerHTML=liveEmpty('the pick history');return;}
+  const keep=el.querySelector('.hwrap');
+  const top=keep?keep.scrollTop:0;
   const rounds=[...new Set(LIVE.picks.map(p=>p.round))].sort((a,b)=>a-b);
-  el.innerHTML=rounds.map(r=>{
-    const rows=LIVE.picks.filter(p=>p.round===r).sort((a,b)=>(a.roundPick||0)-(b.roundPick||0)).map(p=>{
-      const info=lookupPlayer(p.playerId);
-      const src=byId(p.playerId);
-      return `<tr>
-        <td class="l pk">${pickLabel(p)}</td>
-        <td class="l"><span class="nm">${esc(info.name)}</span>
-          <span class="sub"> ${esc(info.team||'')}${info.pos?' · '+esc(info.pos):''}</span></td>
-        <td class="l tm">${esc(teamName(p.teamId))}</td>
-        <td class="num">${src&&src.pts25!=null?fmt1(src.pts25):'<span class="dash">--</span>'}</td>
-        <td class="num">${src&&src.proj26!=null?fmt1(src.proj26):'<span class="dash">--</span>'}</td>
-      </tr>`;
-    }).join('');
-    return `<div class="hround">Round ${r}</div>
-      <table class="hist"><thead><tr>
-        <th class="l">Pick</th><th class="l">Player</th><th class="l">Team</th>
-        <th>2025 FPTS</th><th>2026 Proj</th></tr></thead><tbody>${rows}</tbody></table>`;
+  // One table for the whole draft rather than one per round: separate tables
+  // never line their columns up, which is what made the numbers spill.
+  const body=rounds.map(r=>{
+    const head=`<tr class="hsec"><td colspan="5">Round ${r}</td></tr>`;
+    return head+LIVE.picks.filter(p=>p.round===r)
+      .sort((a,b)=>(a.roundPick||0)-(b.roundPick||0)).map(p=>{
+        const info=lookupPlayer(p.playerId);
+        const src=byId(p.playerId);
+        return `<tr${src?` class="clickable" data-pid="${p.playerId}"`:''}>
+          <td class="l pk">${pickLabel(p)}</td>
+          <td class="l"><span class="nm">${esc(info.name)}</span>
+            <span class="sub">${esc(info.team||'')}${info.pos?' · '+esc(info.pos):''}</span></td>
+          <td class="l tm">${esc(teamName(p.teamId))}</td>
+          <td class="num">${src&&src.pts25!=null?fmt1(src.pts25):'<span class="dash">--</span>'}</td>
+          <td class="num">${src&&src.proj26!=null?fmt1(src.proj26):'<span class="dash">--</span>'}</td>
+        </tr>`;
+      }).join('');
   }).join('');
+  el.innerHTML=`<div class="hwrap"><table class="hist"><colgroup>
+      <col style="width:64px"><col><col style="width:24%">
+      <col style="width:96px"><col style="width:96px"></colgroup>
+    <thead><tr><th class="l">Pick</th><th class="l">Player</th><th class="l">Team</th>
+      <th>2025 FPTS</th><th>2026 Proj</th></tr></thead><tbody>${body}</tbody></table></div>`;
+  const w=el.querySelector('.hwrap'); if(w)w.scrollTop=top;
 }
 
 function boardCell(p){
   if(!p)return '<div class="bcell empty"></div>';
   const info=lookupPlayer(p.playerId);
-  return `<div class="bcell ${esc(info.pos||'')}">
+  const src=byId(p.playerId);
+  return `<div class="bcell ${esc(info.pos||'')}${src?' clickable':''}"${src?` data-pid="${p.playerId}"`:''}>
     <div class="p">${pickLabel(p)}</div>
     <div class="n" title="${esc(info.name)}">${esc(info.name)}</div>
     <div class="m">${esc(info.team||'')}${info.pos?' · '+esc(info.pos):''}</div></div>`;
+}
+
+/* ESPN's lineup for this league, and the per-position caps it shows under each
+   roster. Edit here if a league is set up differently. */
+const SLOTS=[['QB',['QB']],['RB',['RB']],['RB',['RB']],['WR',['WR']],['WR',['WR']],
+             ['TE',['TE']],['FLEX',['RB','WR','TE']],['D/ST',['D/ST']],['K',['K']]];
+const LIMITS=[['QB',6],['RB',10],['WR',10],['TE',5],['K',3],['D/ST',4]];
+const ROSTER_MAX=18;
+
+function fillLineup(picks){
+  const pool=picks.slice().sort((a,b)=>(a.overall||0)-(b.overall||0));
+  const used=new Set(), out=[];
+  SLOTS.forEach(([label,accepts])=>{
+    const hit=pool.find(p=>!used.has(p)&&accepts.includes(lookupPlayer(p.playerId).pos));
+    if(hit)used.add(hit);
+    out.push({label,pick:hit||null});
+  });
+  pool.filter(p=>!used.has(p)).forEach(p=>out.push({label:'BE',pick:p}));
+  return out;
 }
 
 function renderBoard(){
   const el=document.getElementById('view-board');
   document.querySelectorAll('#boardseg [data-bv]').forEach(b=>b.classList.toggle('on',b.dataset.bv===state.boardView));
   if(!LIVE.picks.length){el.innerHTML=liveEmpty('the draft board');return;}
+  // hold the reader's place: a new pick must not fling you back to round 1
+  const prev=el.querySelector('.bwrap');
+  const keep=prev?{t:prev.scrollTop,l:prev.scrollLeft}:null;
   const order=draftOrder();
   const head=`<tr><th class="rnd"></th>${order.map(id=>`<th>${esc(teamName(id))}</th>`).join('')}</tr>`;
+  let inner;
 
   if(state.boardView==='round'){
-    const byTR=new Map();                       // teamId -> round -> pick
+    const byTR=new Map();
     LIVE.picks.forEach(p=>{
       if(!byTR.has(p.teamId))byTR.set(p.teamId,new Map());
       byTR.get(p.teamId).set(p.round,p);
     });
     const rounds=[...new Set(LIVE.picks.map(p=>p.round))].sort((a,b)=>a-b);
-    const body=rounds.map(r=>`<tr><td class="rnd">R${r}</td>${
+    inner=rounds.map(r=>`<tr><td class="rnd">R${r}</td>${
       order.map(id=>`<td>${boardCell((byTR.get(id)||new Map()).get(r))}</td>`).join('')}</tr>`).join('');
-    el.innerHTML=`<div class="bwrap"><table class="board"><thead>${head}</thead><tbody>${body}</tbody></table></div>`;
-    return;
+  }else{
+    const lineups=new Map(order.map(id=>[id,fillLineup(LIVE.picks.filter(p=>p.teamId===id))]));
+    const depth=Math.max(SLOTS.length,...order.map(id=>lineups.get(id).length));
+    const rows=[];
+    for(let i=0;i<depth;i++){
+      const label=(lineups.get(order[0])||[])[i];
+      const slot=i<SLOTS.length?SLOTS[i][0]:'BE';
+      rows.push(`<tr><td class="rnd"><span class="bslot">${slot}</span></td>${
+        order.map(id=>{
+          const row=(lineups.get(id)||[])[i];
+          return `<td>${boardCell(row?row.pick:null)}</td>`;
+        }).join('')}</tr>`);
+    }
+    // roster limits per team, mirroring the panel in the ESPN draft room
+    rows.push(`<tr><td class="rnd"><span class="bslot">LIMITS</span></td>${
+      order.map(id=>{
+        const mine=LIVE.picks.filter(p=>p.teamId===id);
+        const n=mine.length;
+        const cells=LIMITS.map(([pos,max])=>{
+          const c=mine.filter(p=>lookupPlayer(p.playerId).pos===pos).length;
+          return `<span class="lim${c>=max?' full':''}">${pos} <b>${c}</b>/${max}</span>`;
+        }).join('');
+        return `<td><div class="limbox"><div class="limhead">${n}/${ROSTER_MAX} players</div>${cells}</div></td>`;
+      }).join('')}</tr>`);
+    inner=rows.join('');
   }
 
-  // roster view: rows are position slots, columns are teams
-  const POSORDER=['QB','RB','WR','TE','D/ST','K'];
-  const byTeamPos=new Map();
-  order.forEach(id=>byTeamPos.set(id,{}));
-  LIVE.picks.forEach(p=>{
-    const info=lookupPlayer(p.playerId);
-    const pos=POSORDER.includes(info.pos)?info.pos:'BE';
-    const t=byTeamPos.get(p.teamId)||(byTeamPos.set(p.teamId,{}),byTeamPos.get(p.teamId));
-    (t[pos]=t[pos]||[]).push(p);
-  });
-  const rows=[];
-  POSORDER.concat(['BE']).forEach(pos=>{
-    const n=Math.max(...order.map(id=>((byTeamPos.get(id)||{})[pos]||[]).length),0);
-    for(let i=0;i<n;i++){
-      rows.push(`<tr><td class="rnd"><span class="bslot">${pos}</span></td>${
-        order.map(id=>`<td>${boardCell((((byTeamPos.get(id)||{})[pos])||[])[i])}</td>`).join('')}</tr>`);
-    }
-  });
-  el.innerHTML=`<div class="bwrap"><table class="board"><thead>${head}</thead><tbody>${rows.join('')}</tbody></table></div>`;
+  el.innerHTML=`<div class="bwrap"><table class="board"><thead>${head}</thead><tbody>${inner}</tbody></table></div>`;
+  const now=el.querySelector('.bwrap');
+  if(now&&keep){now.scrollTop=keep.t;now.scrollLeft=keep.l;}
 }
 
+
+/* A player is a player wherever you meet them: clicking one in the pick
+   history or on the board takes you to their row and opens it. */
+function openPlayer(id){
+  if(!byId(id))return;
+  if(state.view!=='players')setView('players');
+  state.open.add(id);
+  render();
+  const tr=document.querySelector(`#tbody tr.p-row[data-id="${id}"]`);
+  if(tr){
+    tr.scrollIntoView({block:'center',behavior:'smooth'});
+    tr.classList.add('flash');
+    setTimeout(()=>tr.classList.remove('flash'),1200);
+  }
+}
 
 /* ---------------------------- Drafted ticker ----------------------------
    Newest pick on the left; scroll right to walk back through the draft.
@@ -774,7 +853,8 @@ function tickerImg(p,info){
 
 function tickerCard(p,fresh){
   const info=lookupPlayer(p.playerId);
-  return `<div class="tick${fresh?' fresh':''}">${tickerImg(p,info)}<div>
+  const src=byId(p.playerId);
+  return `<div class="tick${fresh?' fresh':''}${src?' clickable':''}"${src?` data-pid="${p.playerId}"`:''}>${tickerImg(p,info)}<div>
     <div class="tk-n">${esc(info.name)}</div>
     <div class="tk-m">${esc(info.team||'')}${info.pos?' · '+esc(info.pos):''} · <b>${pickLabel(p)}</b></div>
     <div class="tk-f">${esc(teamName(p.teamId))}</div></div></div>`;
@@ -793,7 +873,6 @@ function renderTicker(){
   if(!fresh.length)return;
   const wasAtFront=box.scrollLeft<=10;
   const before=row.scrollWidth;
-  // newest first, so each new pick goes on the front
   fresh.forEach(p=>{
     TICK.rendered.add(p.round+'.'+p.roundPick);
     row.insertAdjacentHTML('afterbegin',tickerCard(p,true));
@@ -1189,6 +1268,16 @@ function initCompare(){
     e.preventDefault();
     e.currentTarget.scrollLeft+=e.deltaY;
   },{passive:false});
+
+  document.getElementById('view-history').addEventListener('click',e=>{
+    const tr=e.target.closest('tr[data-pid]'); if(tr)openPlayer(+tr.dataset.pid);
+  });
+  document.getElementById('tk-row').addEventListener('click',e=>{
+    const c=e.target.closest('.tick[data-pid]'); if(c)openPlayer(+c.dataset.pid);
+  });
+  document.getElementById('view-board').addEventListener('click',e=>{
+    const c=e.target.closest('.bcell[data-pid]'); if(c)openPlayer(+c.dataset.pid);
+  });
 
   document.getElementById('views').addEventListener('click',e=>{
     const v=e.target.closest('[data-view]'); if(v){setView(v.dataset.view);return;}
