@@ -270,6 +270,63 @@ def poll_loop(client, interval):
         time.sleep(interval * (1 if not fails else min(6, 1 + fails)))
 
 
+
+def dump(client):
+    """One-shot diagnostic: what did ESPN actually send back?
+
+    Prints structure only -- no cookies, no member ids, no owner names -- so the
+    output is safe to paste to someone helping you debug.
+    """
+    if not isinstance(client, Espn):
+        print("--dump needs a real league (not --demo)")
+        return
+    print("=" * 60)
+    print("league %s  season %s  cookies %s"
+          % (client.league, client.season, "yes" if client.cookie else "NO"))
+    try:
+        raw = client._get(client.league_url(["mDraftDetail", "mTeam"]))
+    except urllib.error.HTTPError as e:
+        print("HTTP %d -- %s" % (e.code, e.reason))
+        if e.code in (401, 403):
+            print("-> ESPN rejected the cookies. Re-copy espn_s2 and SWID.")
+        return
+    except Exception as e:
+        print("FAILED: %s: %s" % (type(e).__name__, e))
+        return
+
+    print("top-level keys:", sorted(raw.keys()))
+    teams = raw.get("teams") or []
+    print("teams: %d" % len(teams))
+    if teams:
+        t = teams[0]
+        print("  team keys:", sorted(k for k in t.keys() if k not in ("owners", "members")))
+        print("  first team parses as: name=%r abbrev=%r" % (
+            t.get("name") or " ".join(x for x in (t.get("location"), t.get("nickname")) if x),
+            t.get("abbrev")))
+    dd = raw.get("draftDetail") or {}
+    print("draftDetail keys:", sorted(dd.keys()))
+    print("  drafted=%s inProgress=%s" % (dd.get("drafted"), dd.get("inProgress")))
+    picks = dd.get("picks") or []
+    print("  picks: %d" % len(picks))
+    if picks:
+        p = {k: v for k, v in picks[0].items() if k not in ("memberId",)}
+        print("  first pick raw:", json.dumps(p, sort_keys=True))
+    print("-" * 60)
+    try:
+        parsed = client.poll()
+        print("PARSED OK -> status=%s teams=%d picks=%d"
+              % (parsed["status"], len(parsed["teams"]), len(parsed["picks"])))
+        for pk in parsed["picks"][:5]:
+            nm = client.names.get(pk["playerId"], {}).get("name", "?")
+            print("   %s.%02d  team %-3s  %s" % (pk["round"], pk["roundPick"] or 0,
+                                                 pk["teamId"], nm))
+        if not parsed["picks"]:
+            print("   (no picks yet -- normal before the draft starts)")
+    except Exception as e:
+        print("PARSE FAILED: %s: %s" % (type(e).__name__, e))
+    print("=" * 60)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--league", type=int, help="league id (overrides config; use for mocks)")
@@ -277,6 +334,9 @@ def main():
     ap.add_argument("--port", type=int, default=8787)
     ap.add_argument("--interval", type=float)
     ap.add_argument("--demo", action="store_true", help="simulate a draft; no ESPN, no cookies")
+    ap.add_argument("--dump", action="store_true",
+                    help="fetch once, print what ESPN actually returned, and exit "
+                         "(safe to share -- no cookies, no owner names)")
     args = ap.parse_args()
 
     cfg = {}
@@ -300,6 +360,10 @@ def main():
                   "if the league is public.", file=sys.stderr)
         client = Espn(league, season, s2, swid)
         print("league %s, season %s, polling every %ss" % (league, season, interval))
+
+    if args.dump:
+        dump(client)
+        return
 
     threading.Thread(target=poll_loop, args=(client, interval), daemon=True).start()
 

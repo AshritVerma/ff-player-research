@@ -87,6 +87,10 @@ thead tr.cols th{top:26px}
 thead th.l{text-align:left}
 th.sortable{cursor:pointer}
 th.sortable:hover{color:var(--blue)}
+/* every sortable column shows a ghost arrow on hover, so it's obvious the
+   header is clickable even when it isn't the active sort */
+th.sortable .arr{display:inline-block;min-width:10px;margin-left:2px}
+th.sortable:hover .arr:empty::after{content:'\25BC';opacity:.4;font-size:.9em}
 th.sorted{color:var(--blue)}
 th .arr{font-size:.55rem;margin-left:2px}
 th.gdiv,td.gdiv{border-left:1px solid var(--line)}
