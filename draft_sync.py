@@ -94,6 +94,8 @@ class Ingest:
         self.lock = threading.Lock()
         self.picks = {}          # (round, pick) -> pick dict
         self.updated = None
+        self.draft_id = None     # which draft these picks belong to
+        self.started = None
         self.by_name = {}
         try:
             for p in json.load(open(data_path))["players"]:
@@ -110,12 +112,30 @@ class Ingest:
         sid = -(abs(hash(norm_name(name))) % 10_000_000 + 1)
         return sid, {"name": name, "pos": pos or "?", "team": nfl or ""}
 
-    def add(self, rows):
+    def reset(self, draft_id=None):
+        with self.lock:
+            self.picks = {}
+            self.draft_id = draft_id
+            self.started = time.time()
+            self.updated = time.time()
+
+    def add(self, rows, draft_id=None):
         """Any POST -- even an empty one -- is a heartbeat proving the draft room
         is still open. Freshness must track that, not the last pick: a 30s gap
-        between picks is normal and must not read as 'stale'."""
+        between picks is normal and must not read as 'stale'.
+
+        draft_id is the league id of the room the picks came from. Back-to-back
+        mock drafts each get their own, so a change means a new draft and the
+        old picks must go -- otherwise draft two opens showing draft one."""
+        if draft_id and self.draft_id and draft_id != self.draft_id:
+            print("new draft (%s -> %s); clearing %d picks"
+                  % (self.draft_id, draft_id, len(self.picks)))
+            self.reset(draft_id)
         added = 0
         with self.lock:
+            if draft_id and not self.draft_id:
+                self.draft_id = draft_id
+                self.started = self.started or time.time()
             for r in rows:
                 try:
                     rnd, pk = int(r["round"]), int(r["pick"])
@@ -123,7 +143,13 @@ class Ingest:
                     continue
                 key = (rnd, pk)
                 if key in self.picks:
-                    continue
+                    prev = self.picks[key]
+                    same = norm_name(r.get("name", "")) == norm_name(prev["_info"]["name"])
+                    if same or (rnd, pk) != (1, 1):
+                        continue
+                    # 1.01 replayed with a different player: the room restarted
+                    print("pick 1.01 changed; treating as a new draft")
+                    self.picks = {}
                 pid, info = self.resolve(r.get("name", ""), r.get("pos"), r.get("nfl"))
                 self.picks[key] = {
                     "playerId": pid, "teamName": (r.get("team") or "").strip(),
@@ -333,10 +359,14 @@ class Handler(SimpleHTTPRequestHandler):
             return
         try:
             n = int(self.headers.get("Content-Length") or 0)
-            rows = json.loads(self.rfile.read(n).decode() or "[]")
-            if isinstance(rows, dict):
-                rows = rows.get("picks") or []
-            added = INGEST.add(rows) if INGEST else 0
+            payload = json.loads(self.rfile.read(n).decode() or "[]")
+            draft_id = None
+            if isinstance(payload, dict):
+                draft_id = payload.get("draftId")
+                rows = payload.get("picks") or []
+            else:
+                rows = payload
+            added = INGEST.add(rows, draft_id) if INGEST else 0
         except Exception as e:
             body = json.dumps({"ok": False, "error": str(e)}).encode()
         else:
@@ -354,18 +384,33 @@ class Handler(SimpleHTTPRequestHandler):
         # (Chrome blocks HTTPS -> local HTTP for fetch, XHR and images alike),
         # but it CAN navigate a window it opened. The bookmarklet keeps one
         # small window and re-navigates it here with each batch of picks.
+        if self.path.split("?")[0] == "/api/reset":
+            if INGEST:
+                INGEST.reset()
+            STATE.set(picks=[], teams=[], players={}, status="waiting",
+                      message="Reset - waiting for the next draft", updated=time.time())
+            body = b'{"ok": true, "reset": true}'
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self._cors()
+            self.end_headers()
+            self.wfile.write(body)
+            return
+
         if self.path.split("?")[0] in ("/api/ingest", "/api/sink"):
             added, err = 0, ""
             try:
                 from urllib.parse import urlparse, parse_qs
                 q = parse_qs(urlparse(self.path).query)
                 blob = (q.get("p") or [""])[0]
+                did = (q.get("d") or [None])[0]
                 if blob:
                     pad = "=" * (-len(blob) % 4)
                     rows = json.loads(base64.urlsafe_b64decode(blob + pad).decode())
-                    added = INGEST.add(rows if isinstance(rows, list) else []) if INGEST else 0
+                    added = INGEST.add(rows if isinstance(rows, list) else [], did) if INGEST else 0
                 elif INGEST:
-                    INGEST.add([])                      # heartbeat
+                    INGEST.add([], did)                 # heartbeat
             except Exception as e:
                 err = "%s: %s" % (type(e).__name__, e)
                 print("sink ingest failed:", err, file=sys.stderr)
@@ -406,7 +451,12 @@ small{color:#9aa3ab;font-weight:500}em{color:#f87171;font-style:normal}</style>
         super().do_GET()
 
     def end_headers(self):
-        if self.path.split("?")[0] != "/api/draft":
+        # Only the static file responses need CORS added here. The /api/*
+        # handlers already send it via _cors(), and a second copy makes the
+        # response invalid -- browsers reject duplicate Access-Control-Allow-
+        # Origin headers, which silently broke every /api/ call made with
+        # fetch() rather than a navigation.
+        if not self.path.split("?")[0].startswith("/api/"):
             self.send_header("Access-Control-Allow-Origin", "*")
         super().end_headers()
 
@@ -433,6 +483,7 @@ def merged():
     out = dict(base)
     out.update({
         "ok": True, "status": "live", "source": "room",
+        "draftId": INGEST.draft_id,
         "message": base.get("message") or "",
         "picks": picks, "teams": teams,
         "players": {**(base.get("players") or {}), **players},

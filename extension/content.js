@@ -4,6 +4,9 @@
   var EVERY = 1500;                  // how often to read the room
   var BEAT = 5000;                   // ping the helper at least this often
   var seen = Object.create(null), sent = 0, lastPing = 0, dead = 0;
+  // The league id identifies the draft. Back-to-back mocks each get their own,
+  // so sending it lets the helper drop the previous draft's picks by itself.
+  var DRAFT_ID = new URLSearchParams(location.search).get('leagueId') || '';
 
   var box = document.createElement('div');
   box.style.cssText = 'position:fixed;z-index:2147483647;right:12px;bottom:12px;' +
@@ -26,7 +29,7 @@
   function post(rows) {
     lastPing = Date.now();
     try {
-      chrome.runtime.sendMessage({ type: 'ff-picks', picks: rows }, function (res) {
+      chrome.runtime.sendMessage({ type: 'ff-picks', picks: rows, draftId: DRAFT_ID }, function (res) {
         if (chrome.runtime.lastError || !res || !res.ok) {
           dead++;
           // let anything we failed to deliver be picked up on the next sweep

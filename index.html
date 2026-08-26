@@ -308,6 +308,8 @@ body.tray-open .page{padding-bottom:120px}
 }
 .livebtn:hover{background:var(--hover);border-color:#c9d3dc}
 .livebtn.on{background:var(--espn-dark);border-color:var(--espn-dark);color:#fff}
+.livebtn.danger.armed{background:var(--red);border-color:var(--red);color:#fff}
+.controls.slim #reset-btn{display:none}
 .livebtn[hidden]{display:none}
 /* on Pick History / Board keep only the live switch and status */
 .controls.slim .search,.controls.slim #tabs,.controls.slim #count,
@@ -514,6 +516,7 @@ tr.p-row.flash td{animation:flashrow 1.2s ease}
       </div>
       <div class="tabs" id="tabs"></div>
       <div class="livewrap">
+        <button class="livebtn danger" id="reset-btn" title="Clear tracked picks and start a fresh draft">Reset picks</button>
         <button class="livebtn" id="avail-btn" title="Show only players still on the board">Hide drafted</button>
         <button class="livebtn" id="rosters-btn" title="See every team's roster">Rosters &rsaquo;</button>
         <span class="livestat" id="livestat"><span class="dot"></span><span id="livestat-txt"></span></span>
@@ -837,6 +840,38 @@ function openPlayer(id){
     tr.classList.add('flash');
     setTimeout(()=>tr.classList.remove('flash'),1200);
   }
+}
+
+
+/* Back-to-back drafts: the helper drops the previous draft's picks by itself
+   when the room's league id changes, but a manual reset is here for the cases
+   it can't see -- a room re-run under the same id, or a helper left running
+   from something you have already finished. */
+function resetPicks(){
+  fetch('http://127.0.0.1:8787/api/reset',{cache:'no-store'})
+    .then(r=>{ if(!r.ok)throw new Error('HTTP '+r.status); return r.json(); })
+    .catch(err=>{
+      // Clearing only the page would be a lie: the helper still holds the picks
+      // and the next poll puts them straight back.
+      const tx=document.getElementById('livestat-txt');
+      const el=document.getElementById('livestat');
+      el.classList.remove('live');el.classList.add('err');
+      tx.textContent='reset failed — restart the helper';
+      el.title='The helper refused /api/reset ('+err.message+'). It is probably '
+        +'running an older version: quit it and let the app start it again.';
+      throw err;
+    })
+    .then(()=>{
+    LIVE.picks=[];LIVE.byPlayer=new Map();LIVE.seen=-1;
+    TICK.rendered.clear();
+    const row=document.getElementById('tk-row'); if(row)row.innerHTML='';
+    document.getElementById('ticker').hidden=true;
+    state.open.clear();
+    render();
+    if(state.view==='history')renderHistory();
+    if(state.view==='board')renderBoard();
+    pollDraft();
+  });
 }
 
 /* ---------------------------- Drafted ticker ----------------------------
@@ -1283,6 +1318,23 @@ function initCompare(){
     const v=e.target.closest('[data-view]'); if(v){setView(v.dataset.view);return;}
     const b=e.target.closest('[data-bv]');
     if(b){state.boardView=b.dataset.bv;renderBoard();}
+  });
+
+  // two-click confirm rather than a modal: one stray click shouldn't wipe a
+  // draft you're in the middle of
+  const resetBtn=document.getElementById('reset-btn');
+  let armed=null;
+  resetBtn.addEventListener('click',()=>{
+    if(armed){
+      clearTimeout(armed);armed=null;
+      resetBtn.classList.remove('armed');resetBtn.textContent='Reset picks';
+      resetPicks();
+      return;
+    }
+    resetBtn.classList.add('armed');resetBtn.textContent='Reset? click again';
+    armed=setTimeout(()=>{
+      armed=null;resetBtn.classList.remove('armed');resetBtn.textContent='Reset picks';
+    },4000);
   });
 
   const availBtn=document.getElementById('avail-btn');

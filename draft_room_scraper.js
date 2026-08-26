@@ -17,6 +17,7 @@
   if (window.__ffScraper) window.__ffScraper.stop();
 
   var seen = Object.create(null), sent = 0, queue = [], lastPing = 0, sink = null;
+  var DRAFT_ID = new URLSearchParams(location.search).get('leagueId') || '';
 
   var box = document.createElement('div');
   box.style.cssText = 'position:fixed;z-index:2147483647;right:12px;bottom:12px;' +
@@ -46,7 +47,8 @@
       paint('sink window closed — click the bookmark again', '#f87171');
       return false;
     }
-    var url = HELPER + (rows.length ? '?p=' + b64(rows) : '?beat=1') + '&t=' + Date.now();
+    var url = HELPER + (rows.length ? '?p=' + b64(rows) : '?beat=1')
+              + '&d=' + encodeURIComponent(DRAFT_ID) + '&t=' + Date.now();
     if (url.length > MAXURL) return false;
     try { sink.location.replace(url); } catch (e) { return false; }
     lastPing = Date.now();
