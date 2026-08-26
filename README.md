@@ -25,6 +25,7 @@ Select up to 4 players for a side-by-side compare with best values highlighted.
 | `fetch_espn.py` | Refresh stats, projections, ranks, ADP, news, SOS |
 | `fetch_gamelogs.py` | Add weekly PPR game logs (2024/2025) |
 | `build_standalone.py` | Bundle it all into the standalone file |
+| `draft_sync.py` | Live draft helper — polls ESPN, feeds the Live Draft switch |
 
 ## Two ways to run it
 
@@ -55,6 +56,39 @@ python3 build_standalone.py   # rebuild the standalone file
 `build_standalone.py --no-images` gives a ~1 MB file instead of ~2.4 MB, at the
 cost of needing a network for photos. Source images cache in `.asset_cache/`
 (gitignored), so rebuilds after the first take under a second.
+
+## Live draft
+
+Flip the **Live Draft** switch in the board's toolbar during a draft and every
+player who's been taken is struck through and greyed, tagged with the team that
+took them and the pick number (`GRID · 1.01`). **Rosters** opens every team's
+full board. There's a *Hide drafted* toggle in there if you'd rather see only
+who's actually left.
+
+The board can't read a private ESPN league on its own — the draft endpoint needs
+the `espn_s2` / `SWID` session cookies, and a browser page can't set cookie
+headers on a cross-site fetch. So a small local process does it:
+
+```bash
+python3 draft_sync.py --demo    # simulated draft, no ESPN, no cookies — try it first
+python3 draft_sync.py           # your real draft
+python3 draft_sync.py --league 987654   # a mock draft's league id
+```
+
+For the real thing, copy `draft_config.example.json` to `draft_config.json` and
+fill in your league id plus the cookies (log in to fantasy.espn.com → DevTools →
+Application → Cookies → copy `espn_s2` and `SWID`). **`draft_config.json` is
+gitignored — it holds live session cookies, don't commit it.** The cookies never
+leave the helper process; the page only ever receives picks, team names and
+player names.
+
+Leave the helper running during the draft and flip the switch. If it isn't
+running, the switch says `helper offline` and the board behaves exactly as it
+always does — nothing about the offline dashboard depends on it.
+
+The status readout is deliberately loud: it shows how many seconds ago the last
+successful sync was, and turns amber once that passes 20 seconds. A draft board
+silently showing stale availability is worse than no board at all.
 
 ## Data sources
 

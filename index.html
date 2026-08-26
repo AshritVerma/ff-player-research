@@ -269,6 +269,70 @@ body.tray-open .page{padding-bottom:120px}
   .page{padding:10px 8px 40px}
   .count{display:none}
 }
+
+/* ---------- Live draft ---------- */
+.livewrap{display:flex;align-items:center;gap:8px;margin-left:auto}
+.liveswitch{display:inline-flex;align-items:center;gap:8px;cursor:pointer;user-select:none}
+.liveswitch input{position:absolute;opacity:0;width:0;height:0}
+.liveswitch .track{
+  width:34px;height:20px;border-radius:999px;background:#d3d7db;position:relative;
+  transition:background .16s ease;flex-shrink:0;
+}
+.liveswitch .knob{
+  position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#fff;
+  box-shadow:0 1px 2px rgba(0,0,0,.28);transition:transform .16s ease;
+}
+.liveswitch input:checked + .track{background:var(--green)}
+.liveswitch input:checked + .track .knob{transform:translateX(14px)}
+.liveswitch input:focus-visible + .track{outline:2px solid var(--blue);outline-offset:2px}
+.liveswitch .txt{font-size:.75rem;font-weight:600;color:var(--ink-2);white-space:nowrap}
+.livestat{
+  display:none;align-items:center;gap:6px;font-size:.68rem;color:var(--ink-3);
+  white-space:nowrap;font-weight:500;
+}
+.livestat.on{display:inline-flex}
+.livestat .dot{width:7px;height:7px;border-radius:50%;background:var(--ink-3);flex-shrink:0}
+.livestat.live .dot{background:var(--green);animation:lpulse 1.8s ease-in-out infinite}
+.livestat.warn{color:#b26a00}
+.livestat.warn .dot{background:#e08a00;animation:none}
+.livestat.err{color:var(--red)}
+.livestat.err .dot{background:var(--red);animation:none}
+@keyframes lpulse{0%,100%{opacity:1}50%{opacity:.35}}
+.livebtn{
+  border:1px solid var(--line);background:#fff;border-radius:6px;padding:6px 10px;
+  font:inherit;font-size:.72rem;font-weight:600;color:var(--ink-2);cursor:pointer;white-space:nowrap;
+}
+.livebtn:hover{background:var(--hover);border-color:#c9d3dc}
+.livebtn[hidden]{display:none}
+
+tr.p-row.drafted{background:#fbfbfc}
+tr.p-row.drafted .pname{color:var(--ink-3);text-decoration:line-through;text-decoration-thickness:1px}
+tr.p-row.drafted .hs{filter:grayscale(1);opacity:.5}
+tr.p-row.drafted td:not(.l){opacity:.45}
+.dbadge{
+  display:inline-block;margin-left:6px;padding:1px 5px;border-radius:4px;
+  background:var(--espn-dark);color:#fff;font-size:.6rem;font-weight:700;
+  letter-spacing:.02em;vertical-align:1px;white-space:nowrap;
+}
+.dbadge.mine{background:var(--green)}
+
+/* rosters panel */
+.rosters{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px;padding:16px 20px}
+.rcard{border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;background:#fff}
+.rcard h3{
+  font-size:.72rem;font-weight:700;padding:8px 10px;background:var(--group-bg);
+  border-bottom:1px solid var(--line-soft);display:flex;justify-content:space-between;gap:8px;
+}
+.rcard h3 span{color:var(--ink-3);font-weight:600;font-variant-numeric:tabular-nums}
+.rcard ol{list-style:none;margin:0;padding:4px 0}
+.rcard li{display:flex;align-items:baseline;gap:6px;padding:3px 10px;font-size:.72rem}
+.rcard li .pk{color:var(--ink-3);font-size:.62rem;min-width:30px;font-variant-numeric:tabular-nums}
+.rcard li .nm{font-weight:600;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rcard li .po{color:var(--ink-3);font-size:.62rem;margin-left:auto;white-space:nowrap}
+.rempty{padding:30px 20px;text-align:center;color:var(--ink-3);font-size:.78rem}
+.lhelp{padding:22px 24px;font-size:.8125rem;line-height:1.6;color:var(--ink-2)}
+.lhelp code{background:var(--group-bg);border:1px solid var(--line-soft);border-radius:4px;padding:1px 5px;font-size:.76rem}
+.lhelp b{color:var(--ink)}
 </style>
 </head>
 <body>
@@ -296,6 +360,15 @@ body.tray-open .page{padding-bottom:120px}
         <input id="q" type="text" placeholder="Player name or team…" autocomplete="off">
       </div>
       <div class="tabs" id="tabs"></div>
+      <div class="livewrap">
+        <button class="livebtn" id="rosters-btn" hidden>Rosters</button>
+        <span class="livestat" id="livestat"><span class="dot"></span><span id="livestat-txt"></span></span>
+        <label class="liveswitch" title="Track your ESPN draft live (needs draft_sync.py running)">
+          <input type="checkbox" id="live-toggle">
+          <span class="track"><span class="knob"></span></span>
+          <span class="txt">Live Draft</span>
+        </label>
+      </div>
       <div class="count num" id="count"></div>
     </div>
     <div class="table-wrap">
@@ -328,6 +401,16 @@ body.tray-open .page{padding-bottom:120px}
     </div>
   </div>
   <div class="tray" id="tray" aria-live="polite"></div>
+  <div class="modal-bg" id="rost-bg">
+    <div class="modal" role="dialog" aria-label="Draft rosters">
+      <div class="mhead">
+        <h2>Draft Rosters</h2>
+        <div class="mseg"><button id="rost-avail" data-v="avail">Hide drafted on board</button></div>
+        <button class="mclose" id="rost-close" aria-label="Close">✕</button>
+      </div>
+      <div class="mbody" id="rost-body"></div>
+    </div>
+  </div>
   <div class="modal-bg" id="modal-bg">
     <div class="modal" role="dialog" aria-label="Compare players">
       <div class="mhead">
@@ -354,7 +437,143 @@ body.tray-open .page{padding-bottom:120px}
 <script>
 const POS_TABS=['All','QB','RB','WR','TE','FLX','K','D/ST'];
 const FLX=new Set(['RB','WR','TE']);
-const state={pos:'All',q:'',sortK:'proj26',sortDir:-1,open:new Set(),cmp:[],cmpView:'25'};
+const state={pos:'All',q:'',sortK:'proj26',sortDir:-1,open:new Set(),cmp:[],cmpView:'25',hideDrafted:false};
+
+/* ============================ Live draft =============================
+   The board cannot read a private ESPN league itself -- the draft endpoint
+   needs the espn_s2/SWID session cookies and JS can't set cookie headers on a
+   cross-site fetch. draft_sync.py holds the cookies, polls ESPN, and exposes
+   the result here. Everything below degrades to "switch is off" when that
+   helper isn't running, so the board still works untouched offline.        */
+const HELPER='http://127.0.0.1:8787/api/draft';
+const STALE_AFTER=20;                    // seconds before we stop trusting it
+const LIVE={
+  on:false, reachable:false, status:'off', message:'', age:null,
+  picks:[], teams:[], players:{},
+  byPlayer:new Map(), teamById:new Map(), timer:null, seen:-1,
+};
+
+function lookupPlayer(id){
+  const p=byId(id);
+  if(p)return{name:p.name,pos:p.pos,team:p.team};
+  const q=LIVE.players[String(id)];
+  return q||{name:'Player '+id,pos:'?',team:''};
+}
+function pickLabel(d){
+  return (d.round&&d.roundPick)?`${d.round}.${String(d.roundPick).padStart(2,'0')}`:('#'+d.overall);
+}
+function draftBadge(d){
+  if(!d)return'';
+  const t=LIVE.teamById.get(d.teamId);
+  const short=(t&&(t.abbrev||t.name))||('TM'+d.teamId);
+  const full=(t&&t.name)||('Team '+d.teamId);
+  return `<span class="dbadge" title="${esc(full)} — pick ${pickLabel(d)}">${esc(short)} · ${pickLabel(d)}</span>`;
+}
+
+async function pollDraft(){
+  if(!LIVE.on)return;
+  try{
+    const r=await fetch(HELPER,{cache:'no-store'});
+    if(!r.ok)throw new Error('HTTP '+r.status);
+    const d=await r.json();
+    LIVE.reachable=true;
+    LIVE.status=d.status||'error'; LIVE.message=d.message||''; LIVE.age=d.age;
+    LIVE.picks=d.picks||[]; LIVE.teams=d.teams||[]; LIVE.players=d.players||{};
+    LIVE.byPlayer=new Map(LIVE.picks.map(p=>[p.playerId,p]));
+    LIVE.teamById=new Map(LIVE.teams.map(t=>[t.id,t]));
+  }catch(e){
+    LIVE.reachable=false; LIVE.status='down'; LIVE.age=null;
+    LIVE.message='Draft helper not reachable on 127.0.0.1:8787';
+    LIVE.picks=[]; LIVE.byPlayer=new Map();
+  }
+  paintLive();
+}
+
+function paintLive(){
+  const el=document.getElementById('livestat'), tx=document.getElementById('livestat-txt');
+  el.classList.toggle('on',LIVE.on);
+  el.classList.remove('live','warn','err');
+  let txt='';
+  if(!LIVE.on){txt='';}
+  else if(!LIVE.reachable){el.classList.add('err');txt='helper offline';}
+  else if(LIVE.status==='auth'){el.classList.add('err');txt='ESPN cookies rejected';}
+  else if(LIVE.status==='error'){el.classList.add('err');txt='sync error';}
+  else if(LIVE.age!=null&&LIVE.age>STALE_AFTER){
+    el.classList.add('warn');txt=`stale — last sync ${Math.round(LIVE.age)}s ago`;
+  }else if(LIVE.status==='waiting'){el.classList.add('live');txt='connected · awaiting pick 1';}
+  else if(LIVE.status==='complete'){txt=`draft complete · ${LIVE.picks.length} picks`;}
+  else{el.classList.add('live');txt=`${LIVE.picks.length} picks · synced ${Math.round(LIVE.age||0)}s ago`;}
+  tx.textContent=txt;
+  el.title=LIVE.message||txt;
+
+  // only re-render the board when the pick set actually changed
+  if(LIVE.picks.length!==LIVE.seen){
+    LIVE.seen=LIVE.picks.length;
+    render();
+  }
+  if(document.getElementById('rost-bg').classList.contains('show'))buildRosters();
+}
+
+function buildRosters(){
+  const body=document.getElementById('rost-body');
+  if(!LIVE.reachable){
+    body.innerHTML=`<div class="lhelp">
+      <p><b>The draft helper isn't running.</b> ${esc(LIVE.message||'')}</p>
+      <p>The board can't read a private ESPN league on its own, so a small local
+      process does it. In Terminal:</p>
+      <p><code>cd ~/Code/ff-player-research</code><br>
+         <code>python3 draft_sync.py --demo</code> &nbsp;— simulated draft, to try it out<br>
+         <code>python3 draft_sync.py</code> &nbsp;— your real draft, once
+         <code>draft_config.json</code> has your league id and cookies</p>
+      <p>Leave it running during the draft. Flip this switch off and the board
+      goes back to normal.</p></div>`;
+    return;
+  }
+  if(!LIVE.teams.length){
+    body.innerHTML=`<div class="rempty">${esc(LIVE.message||'Waiting for ESPN…')}</div>`;
+    return;
+  }
+  const byTeam=new Map(LIVE.teams.map(t=>[t.id,[]]));
+  LIVE.picks.forEach(pk=>{
+    if(!byTeam.has(pk.teamId))byTeam.set(pk.teamId,[]);
+    byTeam.get(pk.teamId).push(pk);
+  });
+  const order=['QB','RB','WR','TE','K','D/ST','?'];
+  const cards=LIVE.teams.map(t=>{
+    const picks=(byTeam.get(t.id)||[]).slice().sort((a,b)=>(a.overall||0)-(b.overall||0));
+    const lis=picks.map(pk=>{
+      const p=lookupPlayer(pk.playerId);
+      return `<li><span class="pk">${pickLabel(pk)}</span><span class="nm">${esc(p.name)}</span><span class="po">${esc(p.pos)}${p.team?' · '+esc(p.team):''}</span></li>`;
+    }).join('')||'<li><span class="nm" style="color:var(--ink-3);font-weight:500">No picks yet</span></li>';
+    const counts=order.map(o=>{
+      const n=picks.filter(pk=>lookupPlayer(pk.playerId).pos===o).length;
+      return n?`${o} ${n}`:'';
+    }).filter(Boolean).join(' · ');
+    return `<div class="rcard"><h3>${esc(t.name)}<span>${picks.length}</span></h3>
+      <ol>${lis}</ol>
+      ${counts?`<div style="padding:6px 10px;border-top:1px solid var(--line-soft);font-size:.62rem;color:var(--ink-3);font-weight:600">${esc(counts)}</div>`:''}
+    </div>`;
+  }).join('');
+  body.innerHTML=`<div class="rosters">${cards}</div>`;
+}
+
+function setLive(on){
+  LIVE.on=on;
+  document.getElementById('rosters-btn').hidden=!on;
+  if(on){
+    pollDraft();
+    LIVE.timer=setInterval(pollDraft,5000);
+  }else{
+    clearInterval(LIVE.timer);LIVE.timer=null;
+    LIVE.reachable=false;LIVE.picks=[];LIVE.byPlayer=new Map();LIVE.seen=-1;
+    state.hideDrafted=false;
+    document.getElementById('rost-bg').classList.remove('show');
+    render();
+  }
+  paintLive();
+}
+/* ========================== end live draft =========================== */
+
 let DATA=[];let EXTRA={};
 
 const fmt1=v=>v==null?null:(Math.round(v*10)/10).toFixed(1);
@@ -403,12 +622,13 @@ function rowHTML(p,i){
   const n=p.news&&p.news[0];
   const itag=ITAG[p.injuryStatus]?`<span class="itag">${ITAG[p.injuryStatus]}</span>`:'';
   const sel=state.cmp.includes(p.id);
-  return `<tr class="p-row ${state.open.has(p.id)?'open':''}" data-id="${p.id}">
+  const drafted=LIVE.byPlayer.get(p.id);
+  return `<tr class="p-row ${state.open.has(p.id)?'open':''} ${drafted?'drafted':''}" data-id="${p.id}">
     <td class="l cmp-td"><button class="cmpbtn ${sel?'sel':''}" data-cmp="${p.id}" aria-label="${sel?'Remove from':'Add to'} compare" title="${sel?'Remove from compare':'Add to compare'}">${sel?CHECK:PLUS}</button></td>
     <td class="l rk num" ${p.adp?`title="ADP ${p.adp}"`:''}>${p.adpRank??'<span class="dash">--</span>'}</td>
     <td class="l rk num">${p.rank??i+1}</td>
     <td class="l"><div class="pcell">${headshot(p)}<div>
-      <div class="pname">${esc(p.name)}${itag}</div>
+      <div class="pname">${esc(p.name)}${itag}${draftBadge(drafted)}</div>
       <div class="psub"><b>${p.team}</b> · ${p.pos}</div>
     </div></div></td>
     <td class="l ncell">${n?`<div class="nhead">${esc(n.h)}</div><div class="ntime">${timeAgo(n.t)}</div>`:'<span class="nnone">No recent news</span>'}</td>
@@ -483,7 +703,8 @@ function filtered(){
   const q=state.q.toLowerCase();
   let rows=DATA.filter(p=>
     (state.pos==='All'||(state.pos==='FLX'?FLX.has(p.pos):p.pos===state.pos))&&
-    (!q||p.name.toLowerCase().includes(q)||p.team.toLowerCase().includes(q)));
+    (!q||p.name.toLowerCase().includes(q)||p.team.toLowerCase().includes(q))&&
+    (!state.hideDrafted||!LIVE.byPlayer.has(p.id)));
   const k=state.sortK,dir=state.sortDir;
   rows.sort((a,b)=>{
     const av=a[k],bv=b[k];
@@ -717,7 +938,30 @@ function initCompare(){
     const b=e.target.closest('button');if(!b)return;
     state.cmpView=b.dataset.v;buildModal();
   });
-  document.addEventListener('keydown',e=>{if(e.key==='Escape')closeModal();});
+  document.addEventListener('keydown',e=>{
+    if(e.key!=='Escape')return;
+    const rb=document.getElementById('rost-bg');
+    if(rb.classList.contains('show')){rb.classList.remove('show');document.body.style.overflow='';return;}
+    closeModal();
+  });
+
+  // ---- live draft wiring ----
+  document.getElementById('live-toggle').addEventListener('change',e=>setLive(e.target.checked));
+  const rostBg=document.getElementById('rost-bg');
+  const openRosters=()=>{buildRosters();rostBg.classList.add('show');document.body.style.overflow='hidden';};
+  const closeRosters=()=>{rostBg.classList.remove('show');document.body.style.overflow='';};
+  document.getElementById('rosters-btn').addEventListener('click',openRosters);
+  document.getElementById('livestat').addEventListener('click',()=>{if(LIVE.on)openRosters();});
+  document.getElementById('rost-close').addEventListener('click',closeRosters);
+  rostBg.addEventListener('click',e=>{if(e.target===rostBg)closeRosters();});
+  const availBtn=document.getElementById('rost-avail');
+  availBtn.addEventListener('click',()=>{
+    state.hideDrafted=!state.hideDrafted;
+    availBtn.classList.toggle('on',state.hideDrafted);
+    availBtn.textContent=state.hideDrafted?'Showing available only':'Hide drafted on board';
+    render();
+  });
+  paintLive();
 }
 
 fetch('data.json').then(r=>r.json()).then(init).catch(()=>{
