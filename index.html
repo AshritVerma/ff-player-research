@@ -515,6 +515,13 @@ tr.p-row.flash td{animation:flashrow 1.2s ease}
 .pc-strip{display:flex;gap:0;border-bottom:1px solid var(--line-soft);background:var(--group-bg)}
 .pc-strip div{flex:1;text-align:center;padding:7px 4px;border-right:1px solid var(--line-soft)}
 .pc-strip div:last-child{border-right:0}
+.pc-find{display:block;width:100%;background:none;border:0;padding:0;cursor:pointer;font:inherit;color:inherit}
+.pc-find:hover b{color:var(--blue)}
+.pc-find:hover span{color:var(--blue)}
+tr.p-row.found>td{background:#fff6d6!important;transition:background .2s}
+tr.p-row.found{box-shadow:inset 3px 0 0 var(--blue)}
+@keyframes findfade{0%,60%{background:#ffeaa0}100%{background:transparent}}
+tr.p-row.found.flash>td{animation:findfade 2.4s ease-out}
 .pc-strip b{display:block;font-size:.85rem;font-weight:800;font-variant-numeric:tabular-nums;color:var(--ink)}
 .pc-strip span{font-size:.56rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-3)}
 .pc-body{overflow-y:auto;padding:0 12px 14px;flex:1}
@@ -724,7 +731,7 @@ tr.pickmark.now span{
 const POS_TABS=['All','QB','RB','WR','RB/WR','TE','FLX','K','D/ST'];
 const FLX=new Set(['RB','WR','TE']);
 const RBWR=new Set(['RB','WR']);
-const state={pos:'All',q:'',sortK:'adpRank',sortDir:1,open:new Set(),cmp:[],cmpView:'25',hideDrafted:false,view:'players',boardView:'round',myTeam:null};
+const state={pos:'All',q:'',sortK:'adpRank',sortDir:1,open:new Set(),cmp:[],cmpView:'25',hideDrafted:false,view:'players',boardView:'round',myTeam:null,found:null};
 
 /* ============================ Live draft =============================
    The board cannot read a private ESPN league itself -- the draft endpoint
@@ -1005,7 +1012,8 @@ function openPlayer(id,keepScroll){
     <div><div class="nm">${esc(p.name)}${ITAG[p.injuryStatus]?`<span class="itag">${ITAG[p.injuryStatus]}</span>`:''}</div>
     <div class="sub">${esc(p.team)} · ${esc(p.pos)}${d?` · <b style="color:var(--red)">taken ${pickLabel(d)} by ${esc(teamName(d.teamId))}</b>`:''}</div></div>`;
   document.getElementById('pc-strip').innerHTML=`
-    <div><b>${p.adpRank??'--'}</b><span>Draft RK</span></div>
+    <div><button class="pc-find" data-pid="${p.id}" title="Show this player in the full list">
+      <b>${p.adpRank??'--'}</b><span>Draft RK &#8599;</span></button></div>
     <div><b>${p.rank??'--'}</b><span>ESPN RK</span></div>
     <div><b>${p.adp??'--'}</b><span>ADP</span></div>
     <div><b>${p.pctOwned!=null?p.pctOwned.toFixed(0)+'%':'--'}</b><span>%Rost</span></div>`;
@@ -1016,6 +1024,34 @@ function openPlayer(id,keepScroll){
   card.hidden=false;
 }
 function closePlayerCard(){document.getElementById('pcard').hidden=true;}
+
+/* "Where is he on the board?" -- clicking the Draft RK on an open card drops
+   you back into the full player list with that row lit up. Filters are lifted
+   on the way -- position tab, search text, hide-drafted -- because the point
+   is to see where he sits among everyone, not inside the search you ran. */
+function revealPlayer(id){
+  const p=byId(id); if(!p)return;
+  closePlayerCard();
+  if(state.view!=='players'){setView('players');}
+  state.pos='All'; state.q='';
+  const qEl=document.getElementById('q'); if(qEl)qEl.value='';
+  const qx=document.getElementById('q-clear'); if(qx)qx.hidden=true;
+  document.querySelectorAll('#tabs button').forEach(b=>b.classList.toggle('on',b.dataset.pos==='All'));
+  if(state.hideDrafted){
+    state.hideDrafted=false;
+    const ab=document.getElementById('avail-btn');
+    if(ab){ab.classList.remove('on');ab.textContent='Hide drafted';}
+  }
+  state.found=id;
+  render();
+  const row=document.querySelector(`#tbody tr.p-row[data-id="${id}"]`);
+  if(row){
+    row.scrollIntoView({block:'center',behavior:'smooth'});
+    row.classList.add('flash');
+    setTimeout(()=>{const r=document.querySelector(`#tbody tr.p-row[data-id="${id}"]`);
+      if(r)r.classList.remove('flash');},2600);
+  }
+}
 
 
 
@@ -1235,7 +1271,7 @@ function rowHTML(p,i){
   const itag=ITAG[p.injuryStatus]?`<span class="itag">${ITAG[p.injuryStatus]}</span>`:'';
   const sel=state.cmp.includes(p.id);
   const drafted=LIVE.byPlayer.get(p.id);
-  return `<tr class="p-row ${state.open.has(p.id)?'open':''} ${drafted?'drafted':''}" data-id="${p.id}">
+  return `<tr class="p-row ${state.open.has(p.id)?'open':''} ${drafted?'drafted':''} ${state.found===p.id?'found':''}" data-id="${p.id}">
     <td class="l cmp-td"><button class="cmpbtn ${sel?'sel':''}" data-cmp="${p.id}" aria-label="${sel?'Remove from':'Add to'} compare" title="${sel?'Remove from compare':'Add to compare'}">${sel?CHECK:PLUS}</button></td>
     <td class="l rk num" ${p.adp?`title="ADP ${p.adp}"`:''}>${p.adpRank??'<span class="dash">--</span>'}</td>
     <td class="l rk num">${p.rank??i+1}</td>
@@ -1465,13 +1501,13 @@ function init(data){
   tabs.innerHTML=POS_TABS.map(t=>`<button class="${t===state.pos?'on':''}" data-pos="${t}">${t}</button>`).join('');
   tabs.addEventListener('click',e=>{
     const b=e.target.closest('button');if(!b)return;
-    state.pos=b.dataset.pos;
+    state.pos=b.dataset.pos; state.found=null;
     tabs.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));
     render();
   });
   const qEl=document.getElementById('q'), qx=document.getElementById('q-clear');
   const syncQx=()=>{qx.hidden=!qEl.value;};
-  qEl.addEventListener('input',e=>{state.q=e.target.value.trim();syncQx();render();});
+  qEl.addEventListener('input',e=>{state.q=e.target.value.trim();state.found=null;syncQx();render();});
   qEl.addEventListener('keydown',e=>{
     if(e.key==='Escape'&&qEl.value){e.stopPropagation();qEl.value='';state.q='';syncQx();render();}
   });
@@ -1483,6 +1519,7 @@ function init(data){
     const th=e.target.closest('th.sortable');if(!th)return;
     const k=th.dataset.k;
     if(state.sortK===k)state.sortDir*=-1;else{state.sortK=k;state.sortDir=(k==='rank'||k==='adpRank')?1:-1;}
+    state.found=null;
     render();
   });
   document.getElementById('tbody').addEventListener('click',e=>{
@@ -1743,6 +1780,9 @@ function initCompare(){
   document.getElementById('pc-close').addEventListener('click',closePlayerCard);
   document.getElementById('pc-body').addEventListener('click',e=>{
     const d=e.target.closest('.dcp[data-pid]'); if(d)openPlayer(+d.dataset.pid);
+  });
+  document.getElementById('pc-strip').addEventListener('click',e=>{
+    const f=e.target.closest('.pc-find[data-pid]'); if(f)revealPlayer(+f.dataset.pid);
   });
 
   const availBtn=document.getElementById('avail-btn');
