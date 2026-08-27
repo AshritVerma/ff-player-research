@@ -178,6 +178,40 @@ class Ingest:
         except Exception as e:
             print("league size lookup failed for %s: %s" % (draft_id, e), file=sys.stderr)
 
+    def _conflicts(self, rows):
+        """Does this batch name a different player in a slot we already hold?
+
+        That, not a changed URL, is what actually proves a different draft."""
+        with self.lock:
+            for r in rows or []:
+                try:
+                    key = (int(r["round"]), int(r["pick"]))
+                except Exception:
+                    continue
+                prev = self.picks.get(key)
+                if prev and norm_name(r.get("name", "")) != norm_name(prev["_info"]["name"]):
+                    return True
+        return False
+
+    def missing(self):
+        """Pick slots we never received, below the highest one we did.
+
+        Pick numbering is dense, so a hole means the room feed was not being
+        read when that pick landed -- worth saying out loud rather than quietly
+        showing a board that is wrong."""
+        with self.lock:
+            if not self.picks:
+                return []
+            keys = sorted(self.picks)
+            per = max(k[1] for k in keys if k[0] == 1) if any(k[0] == 1 for k in keys) else 0
+            if self.team_count:
+                per = self.team_count
+            if not per:
+                return []
+            last = max((k[0] - 1) * per + k[1] for k in keys)
+            have = set((k[0] - 1) * per + k[1] for k in keys)
+            return [o for o in range(1, last + 1) if o not in have]
+
     def add(self, rows, draft_id=None):
         """Any POST -- even an empty one -- is a heartbeat proving the draft room
         is still open. Freshness must track that, not the last pick: a 30s gap
@@ -187,9 +221,26 @@ class Ingest:
         mock drafts each get their own, so a change means a new draft and the
         old picks must go -- otherwise draft two opens showing draft one."""
         if draft_id and self.draft_id and draft_id != self.draft_id:
-            print("new draft (%s -> %s); clearing %d picks"
-                  % (self.draft_id, draft_id, len(self.picks)))
-            self.reset(draft_id)
+            # A different league id usually does mean a different draft -- but it
+            # also happens when ESPN moves you between routes in the middle of
+            # one, and wiping a live board because a URL changed is far worse
+            # than carrying a stale board into the next mock. Only clear when the
+            # new room actually contradicts what we are holding; the 1.01-replay
+            # check below is the other, more reliable new-draft signal, and the
+            # Reset picks button is always there.
+            if self._conflicts(rows):
+                print("new draft (%s -> %s); clearing %d picks"
+                      % (self.draft_id, draft_id, len(self.picks)))
+                self.reset(draft_id)
+            else:
+                print("league id changed (%s -> %s); keeping %d picks, no conflict"
+                      % (self.draft_id, draft_id, len(self.picks)))
+                with self.lock:
+                    self.draft_id = draft_id
+                    self.team_count = None
+                    self.league_teams = []
+                threading.Thread(target=self.lookup_league,
+                                 args=(draft_id,), daemon=True).start()
         added = 0
         with self.lock:
             first = draft_id and not self.draft_id
@@ -590,8 +641,10 @@ class Handler(SimpleHTTPRequestHandler):
         except Exception as e:
             body = json.dumps({"ok": False, "error": str(e)}).encode()
         else:
+            miss = INGEST.missing() if INGEST else []
             body = json.dumps({"ok": True, "added": added,
-                               "total": len(INGEST.picks) if INGEST else 0}).encode()
+                               "total": len(INGEST.picks) if INGEST else 0,
+                               "missing": len(miss)}).encode()
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(body)))
@@ -716,6 +769,7 @@ def merged():
         "ok": True, "status": "live", "source": "room",
         "draftId": INGEST.draft_id,
         "teamCount": INGEST.team_count,
+        "missing": INGEST.missing(),
         "message": base.get("message") or "",
         "picks": picks, "teams": teams,
         "players": {**(base.get("players") or {}), **players},

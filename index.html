@@ -747,7 +747,7 @@ const HELPER='http://127.0.0.1:8787/api/draft';
 const STALE_AFTER=20;                    // seconds before we stop trusting it
 const LIVE={
   on:false, reachable:false, status:'off', message:'', age:null,
-  picks:[], teams:[], players:{}, teamCount:null,
+  picks:[], teams:[], players:{}, teamCount:null, missing:[],
   byPlayer:new Map(), teamById:new Map(), timer:null, seen:-1,
 };
 
@@ -778,6 +778,7 @@ async function pollDraft(){
     LIVE.status=d.status||'error'; LIVE.message=d.message||''; LIVE.age=d.age;
     LIVE.picks=d.picks||[]; LIVE.teams=d.teams||[]; LIVE.players=d.players||{};
     LIVE.teamCount=d.teamCount||null;
+    LIVE.missing=d.missing||[];
     LIVE.byPlayer=new Map(LIVE.picks.map(p=>[p.playerId,p]));
     LIVE.teamById=new Map(LIVE.teams.map(t=>[t.id,t]));
   }catch(e){
@@ -801,6 +802,15 @@ function paintLive(){
     el.classList.add('warn');txt=`stale — last sync ${Math.round(LIVE.age)}s ago`;
   }else if(LIVE.status==='waiting'){el.classList.add('live');txt='connected · awaiting pick 1';}
   else if(LIVE.status==='complete'){txt=`draft complete · ${LIVE.picks.length} picks`;}
+  else if(LIVE.missing&&LIVE.missing.length){
+    el.classList.add('warn');
+    const n=LIVE.missing.length;
+    txt=`${LIVE.picks.length} picks · ${n} missing`;
+    el.title='The room feed was not being read when pick'+(n===1?' ':'s ')
+      +LIVE.missing.slice(0,8).join(', ')+(n>8?'…':'')+' landed. Reload the ESPN '
+      +'draft room tab: the companion re-reads the whole feed and backfills anything '
+      +'still on screen.';
+  }
   else{
     const mine=myPicks(1)[0];
     el.classList.add('live');
@@ -810,7 +820,8 @@ function paintLive(){
     else txt=`${LIVE.picks.length} picks · synced ${Math.round(LIVE.age||0)}s ago`;
   }
   tx.textContent=txt;
-  el.title=LIVE.message||txt;
+  // a gap warning explains itself; don't let the generic message overwrite it
+  if(!(LIVE.on&&LIVE.missing&&LIVE.missing.length))el.title=LIVE.message||txt;
 
   const sel=document.getElementById('myteam');
   if(sel){
