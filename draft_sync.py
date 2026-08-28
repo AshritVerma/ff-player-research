@@ -172,24 +172,88 @@ class Ingest:
         self.started = None
         self.team_count = None   # exact size, looked up from the league
         self.league_teams = []
+        self.source = None       # "espn" or "yahoo" -- which site's room is feeding us
         self.client = {}         # what the draft-room companion reports about itself
         self.client_at = None
         self.last_post = None
         self.by_name = {}
+        self.by_id = {}
         try:
             for p in json.load(open(data_path))["players"]:
                 self.by_name.setdefault(norm_name(p["name"]), p)
+                self.by_id[p["id"]] = p
         except Exception:
             pass
 
     def resolve(self, name, pos, nfl):
         p = self.by_name.get(norm_name(name))
+        if p is None:
+            p = self.resolve_short(name, pos, nfl)
         if p:
             return p["id"], {"name": p["name"], "pos": p["pos"], "team": p["team"]}
-        # not in the top-300 snapshot: keep a stable synthetic id so the page
-        # can still show them on a roster
+        # not in the snapshot: keep a stable synthetic id so the page can still
+        # show them on a roster
         sid = -(abs(hash(norm_name(name))) % 10_000_000 + 1)
         return sid, {"name": name, "pos": pos or "?", "team": nfl or ""}
+
+    def resolve_short(self, name, pos, nfl):
+        """Yahoo abbreviates: "J. Gibbs", "A. St. Brown", "J. Smith-Njigba".
+
+        A surname alone is ambiguous -- there are two Browns and three
+        Smiths on any board -- but a surname plus a position plus an NFL team
+        is not. Match on all three, then relax, and refuse rather than guess if
+        more than one player still fits.
+        """
+        raw = (name or "").strip()
+        m = re.match(r"^([A-Za-z])\.?\s+(.+)$", raw)
+        if not m:
+            # team defences come through as "Rams" / DEF
+            if (pos or "").upper() in ("D/ST", "DEF") and nfl:
+                for cand in self.by_id.values():
+                    if cand["pos"] == "D/ST" and cand["team"].upper() == nfl.upper():
+                        return cand
+            return None
+        initial, surname = m.group(1).lower(), norm_name(m.group(2))
+        if not surname:
+            return None
+        pos = (pos or "").upper()
+        nfl = (nfl or "").upper()
+
+        def fits(c, use_pos, use_team):
+            n = norm_name(c["name"])
+            if not (n == surname or n.endswith(" " + surname)):
+                return False
+            if not n.startswith(initial):
+                return False
+            if use_pos and pos and c["pos"].upper() != pos:
+                return False
+            if use_team and nfl and c["team"].upper() != nfl:
+                return False
+            return True
+
+        for use_pos, use_team in ((True, True), (True, False), (False, True), (False, False)):
+            hits = [c for c in self.by_id.values() if fits(c, use_pos, use_team)]
+            if not hits:
+                continue
+            if len(hits) == 1:
+                return hits[0]
+            # Two players can be indistinguishable from the feed alone -- Bijan
+            # Robinson and Brian Robinson Jr. are both "B. Robinson", RB, ATL.
+            # The draft itself breaks the tie: anyone already taken is not the
+            # one being taken now.
+            taken = {pk["playerId"] for pk in self.picks.values()}
+            live = [c for c in hits if c["id"] not in taken]
+            if len(live) == 1:
+                return live[0]
+            if live:
+                # Still tied. The earlier-ranked player is the one who goes at
+                # this point far more often than not, but say so out loud.
+                live.sort(key=lambda c: (c.get("yahooRank") or c.get("adpRank") or 9999))
+                LOG("name.ambiguous", saw=raw, pos=pos, team=nfl,
+                    chose=live[0]["name"],
+                    over=", ".join(c["name"] for c in live[1:3]))
+                return live[0]
+        return None
 
     def reset(self, draft_id=None):
         with self.lock:
@@ -199,7 +263,8 @@ class Ingest:
             self.updated = time.time()
             self.team_count = None
             self.league_teams = []
-        if draft_id:
+            self.source = None
+        if draft_id and self.source != "yahoo":
             threading.Thread(target=self.lookup_league, args=(draft_id,), daemon=True).start()
 
     def lookup_league(self, draft_id):
@@ -286,7 +351,7 @@ class Ingest:
                             "ext", "uptime") if diag.get(k) is not None}
             self.client_at = time.time()
 
-    def add(self, rows, draft_id=None):
+    def add(self, rows, draft_id=None, source=None, team_count=None):
         """Any POST -- even an empty one -- is a heartbeat proving the draft room
         is still open. Freshness must track that, not the last pick: a 30s gap
         between picks is normal and must not read as 'stale'.
@@ -294,6 +359,24 @@ class Ingest:
         draft_id is the league id of the room the picks came from. Back-to-back
         mock drafts each get their own, so a change means a new draft and the
         old picks must go -- otherwise draft two opens showing draft one."""
+        # Switching sites is unambiguously a different draft -- ESPN picks mean
+        # nothing in a Yahoo room and the player ids do not even line up. No
+        # conflict check needed, and none would help.
+        if source and self.source and source != self.source:
+            print("source changed (%s -> %s); clearing %d picks"
+                  % (self.source, source, len(self.picks)))
+            LOG("draft.cleared", was=self.source, now=source,
+                dropped=len(self.picks), why="different site")
+            self.reset(draft_id)
+        if source:
+            with self.lock:
+                self.source = source
+        if team_count:
+            # Yahoo prints every team's name on the draft board, so the room
+            # knows its own size and there is nothing to infer.
+            with self.lock:
+                self.team_count = int(team_count)
+
         if draft_id and self.draft_id and draft_id != self.draft_id:
             # A different league id usually does mean a different draft -- but it
             # also happens when ESPN moves you between routes in the middle of
@@ -325,7 +408,7 @@ class Ingest:
             if first:
                 self.draft_id = draft_id
                 self.started = self.started or time.time()
-        if first:
+        if first and (source or self.source) != "yahoo":
             threading.Thread(target=self.lookup_league, args=(draft_id,), daemon=True).start()
         with self.lock:
             for r in rows:
@@ -719,13 +802,15 @@ class Handler(SimpleHTTPRequestHandler):
                 diag = payload.get("diag")
             else:
                 rows = payload
+            source = payload.get("source") if isinstance(payload, dict) else None
             gap_before = len(INGEST.missing()) if INGEST else 0
             silent = None
             if INGEST and INGEST.last_post:
                 silent = round(time.time() - INGEST.last_post, 1)
             if INGEST:
                 INGEST.note_client(diag)
-            added = INGEST.add(rows, draft_id) if INGEST else 0
+            tc = payload.get("teamCount") if isinstance(payload, dict) else None
+            added = INGEST.add(rows, draft_id, source, tc) if INGEST else 0
         except Exception as e:
             LOG("ingest.failed", err="%s: %s" % (type(e).__name__, e))
             body = json.dumps({"ok": False, "error": str(e)}).encode()
@@ -738,7 +823,7 @@ class Handler(SimpleHTTPRequestHandler):
             # enough that the room had probably stopped reporting.
             if added or len(miss) != gap_before or (silent is not None and silent > 20) \
                or (diag or {}).get("unparsed"):
-                LOG("ingest", sent=len(rows), added=added, total=total,
+                LOG("ingest", site=source, sent=len(rows), added=added, total=total,
                     missing=len(miss) or None, draft=draft_id,
                     silent_for=silent if (silent or 0) > 20 else None,
                     unreadable=(diag or {}).get("unparsed") or None,
@@ -788,7 +873,8 @@ class Handler(SimpleHTTPRequestHandler):
                 if INGEST:
                     silent = ("%.0fs ago" % (time.time() - INGEST.last_post)
                               if INGEST.last_post else "never")
-                    head += ["picks held : %d" % len(INGEST.picks),
+                    head += ["site       : %s" % (INGEST.source or "unknown"),
+                             "picks held : %d" % len(INGEST.picks),
                              "missing    : %s" % (INGEST.missing() or "none"),
                              "draft id   : %s" % (INGEST.draft_id or "-"),
                              "team count : %s" % (INGEST.team_count or "unknown"),
@@ -909,6 +995,7 @@ def merged():
     out.update({
         "ok": True, "status": "live", "source": "room",
         "draftId": INGEST.draft_id,
+        "source": INGEST.source,
         "teamCount": INGEST.team_count,
         "missing": INGEST.missing(),
         "message": base.get("message") or "",

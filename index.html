@@ -292,6 +292,15 @@ body.tray-open .page{padding-bottom:120px}
 .livewrap{display:flex;align-items:center;gap:8px;flex-wrap:nowrap;flex-shrink:0;padding:6px 0}
 .controls > .count{flex:0 0 100%;order:99;text-align:right;margin-top:-2px}
 .tabs{flex-shrink:1;min-width:0;overflow-x:auto}
+/* Which site's draft you are in. Sits next to the Live Draft switch because it
+   is the same decision: what am I about to track, and whose board do I trust. */
+.srcpick{display:inline-flex;gap:2px;background:var(--espn-dark2,#2a2e33);
+  border-radius:6px;padding:2px;margin-right:2px}
+.srcpick button{border:0;background:transparent;color:#9aa3ab;font:inherit;
+  font-size:.68rem;font-weight:700;letter-spacing:.02em;padding:4px 9px;
+  border-radius:4px;cursor:pointer;line-height:1.3}
+.srcpick button:hover{color:#e8eaec}
+.srcpick button.on{background:#fff;color:var(--espn-dark,#17181a)}
 .liveswitch{display:inline-flex;align-items:center;gap:8px;cursor:pointer;user-select:none}
 .liveswitch input{position:absolute;opacity:0;width:0;height:0}
 .liveswitch .track{
@@ -652,6 +661,10 @@ tr.pickmark.now span{
         <button class="livebtn danger" id="reset-btn" title="Clear tracked picks and start a fresh draft">Reset picks</button>
         <button class="livebtn" id="avail-btn" title="Show only players still on the board">Hide drafted</button>
         <span class="livestat" id="livestat"><span class="dot"></span><span id="livestat-txt"></span></span>
+        <div class="srcpick" id="srcpick" role="group" aria-label="Fantasy site">
+          <button class="on" data-src="espn">ESPN</button>
+          <button data-src="yahoo">Yahoo</button>
+        </div>
         <label class="liveswitch" title="Track your ESPN draft live (needs draft_sync.py running)">
           <input type="checkbox" id="live-toggle">
           <span class="track"><span class="knob"></span></span>
@@ -684,7 +697,7 @@ tr.pickmark.now span{
           </tr>
           <tr class="cols" id="cols">
             <th class="l" title="Select players to compare"></th>
-            <th class="sortable l" data-k="adpRank" title="Draft rank — ESPN draft board order (verified via practice mock draft)">Draft RK<span class="arr"></span></th>
+            <th class="sortable l" data-k="adpRank" title="Draft rank — ESPN draft board order">Draft RK<span class="arr"></span></th>
             <th class="sortable l" data-k="rank" title="ESPN overall rank (PPR)">RK<span class="arr"></span></th>
             <th class="l">Player</th>
             <th class="l">Recent News</th>
@@ -735,7 +748,7 @@ tr.pickmark.now span{
 const POS_TABS=['All','QB','RB','WR','RB/WR','TE','FLX','K','D/ST'];
 const FLX=new Set(['RB','WR','TE']);
 const RBWR=new Set(['RB','WR']);
-const state={pos:'All',q:'',sortK:'adpRank',sortDir:1,open:new Set(),cmp:[],hideDrafted:false,view:'players',boardView:'round',myTeam:null,found:null};
+const state={pos:'All',q:'',src:'espn',sortK:'adpRank',sortDir:1,open:new Set(),cmp:[],hideDrafted:false,view:'players',boardView:'round',myTeam:null,found:null};
 
 /* ============================ Live draft =============================
    The board cannot read a private ESPN league itself -- the draft endpoint
@@ -1028,7 +1041,7 @@ function openPlayer(id,keepScroll){
     <div class="sub">${esc(p.team)} · ${esc(p.pos)}${ageTag(p)}${d?` · <b style="color:var(--red)">taken ${pickLabel(d)} by ${esc(teamName(d.teamId))}</b>`:''}</div></div>`;
   document.getElementById('pc-strip').innerHTML=`
     <div><button class="pc-find" data-pid="${p.id}" title="Show this player in the full list">
-      <b>${p.adpRank??'--'}</b><span>Draft RK &#8599;</span></button></div>
+      <b>${rkOf(p)??'--'}</b><span>${SRC[state.src].label} &#8599;</span></button></div>
     <div><b>${p.rank??'--'}</b><span>ESPN RK</span></div>
     <div><b>${p.adp??'--'}</b><span>ADP</span></div>
     <div><b>${p.pctOwned!=null?p.pctOwned.toFixed(0)+'%':'--'}</b><span>%Rost</span></div>`;
@@ -1194,6 +1207,37 @@ function timeAgo(iso){
   if(s<86400*14)return Math.round(s/86400)+'d ago';
   return d.toLocaleDateString('en-US',{month:'short',day:'numeric'});
 }
+/* ESPN and Yahoo do not agree about the draft board -- Kenneth Walker is 25th
+   on one and 12th on the other -- and reading the wrong one is how you reach
+   for someone who went two rounds ago. Draft RK follows whichever room you are
+   actually drafting in; everything that sorts or counts by it follows too. */
+const SRC={espn:{key:'adpRank',label:'Draft RK',full:'ESPN',
+                 tip:'Draft rank — ESPN draft board order'},
+           yahoo:{key:'yahooRank',label:'Yahoo RK',full:'Yahoo',
+                  tip:'Draft rank — Yahoo draft board order (sort=AR)'}};
+const rkKey=()=>SRC[state.src].key;
+const rkOf=p=>p[rkKey()];
+
+function setSource(v){
+  if(!SRC[v]||v===state.src)return;
+  const wasRank=state.sortK===rkKey();
+  state.src=v;
+  if(wasRank)state.sortK=rkKey();          // stay sorted by draft order
+  state.found=null;
+  const th=document.querySelector('th[data-k="adpRank"],th[data-k="yahooRank"]');
+  if(th){th.dataset.k=rkKey();
+         th.title=SRC[v].tip;
+         th.childNodes[0].nodeValue=SRC[v].label;}
+  document.querySelectorAll('#srcpick button').forEach(b=>
+    b.classList.toggle('on',b.dataset.src===v));
+  const sw=document.querySelector('.liveswitch');
+  if(sw)sw.title=`Track your ${SRC[v].full} draft live (needs draft_sync.py running)`;
+  render();
+  if(state.view==='history')renderHistory();
+  if(state.view==='board')renderBoard();
+  paintLive();
+}
+
 function headshot(p){
   if(p.pos==='D/ST'){
     return `<img class="hs logo-img" loading="lazy" src="https://a.espncdn.com/i/teamlogos/nfl/500/${p.team.toLowerCase()}.png" alt="" onerror="this.style.visibility='hidden'">`;
@@ -1292,7 +1336,7 @@ function rowHTML(p,i){
   const drafted=LIVE.byPlayer.get(p.id);
   return `<tr class="p-row ${state.open.has(p.id)?'open':''} ${drafted?'drafted':''} ${state.found===p.id?'found':''}" data-id="${p.id}">
     <td class="l cmp-td"><button class="cmpbtn ${sel?'sel':''}" data-cmp="${p.id}" aria-label="${sel?'Remove from':'Add to'} compare" title="${sel?'Remove from compare':'Add to compare'}">${sel?CHECK:PLUS}</button></td>
-    <td class="l rk num" ${p.adp?`title="ADP ${p.adp}"`:''}>${p.adpRank??'<span class="dash">--</span>'}</td>
+    <td class="l rk num" ${(state.src==='yahoo'?p.yahooAdp:p.adp)?`title="ADP ${state.src==='yahoo'?p.yahooAdp:p.adp}"`:''}>${rkOf(p)??'<span class="dash">--</span>'}</td>
     <td class="l rk num">${p.rank??i+1}</td>
     <td class="l"><div class="pcell">${headshot(p)}<div>
       <div class="pname">${esc(p.name)}${itag}${draftBadge(drafted)}</div>
@@ -1560,7 +1604,7 @@ function init(data){
   document.getElementById('cols').addEventListener('click',e=>{
     const th=e.target.closest('th.sortable');if(!th)return;
     const k=th.dataset.k;
-    if(state.sortK===k)state.sortDir*=-1;else{state.sortK=k;state.sortDir=(k==='rank'||k==='adpRank')?1:-1;}
+    if(state.sortK===k)state.sortDir*=-1;else{state.sortK=k;state.sortDir=(k==='rank'||k==='adpRank'||k==='yahooRank')?1:-1;}
     state.found=null;
     render();
   });
@@ -1694,7 +1738,8 @@ function buildModal(){
     +summaryRow('2025 Games Played',p=>p.gp25,ps,{fmt:v=>v+' / 17'})
     +summaryRow('% Rostered',p=>p.pctOwned,ps,{fmt:v=>v.toFixed(1)+'%'})
     +summaryRow('% Started',p=>p.pctStarted,ps,{fmt:v=>v.toFixed(1)+'%'})
-    +summaryRow('Draft Rank',p=>p.adpRank,ps,{low:true,fmt:v=>'#'+v})
+    +summaryRow('Draft Rank (ESPN)',p=>p.adpRank,ps,{low:true,fmt:v=>'#'+v})
+    +summaryRow('Draft Rank (Yahoo)',p=>p.yahooRank,ps,{low:true,fmt:v=>'#'+v})
     +summaryRow('ESPN Rank',p=>p.rank,ps,{low:true,fmt:v=>'#'+v})
     +summaryRow('2026 SOS',p=>p.sos,ps,{fmt:v=>(Math.round(v*100)/100)+' / 5'});
   // Both years render inline. This used to be a segmented control at the top of
@@ -1855,6 +1900,11 @@ function initCompare(){
 
   /* One click to the helper's own account of itself. When something looks
      wrong mid-draft this is the page to open -- and the page to paste. */
+  document.getElementById('srcpick').addEventListener('click',e=>{
+    const b=e.target.closest('button[data-src]');
+    if(b)setSource(b.dataset.src);
+  });
+
   const stat=document.getElementById('livestat');
   stat.style.cursor='pointer';
   stat.addEventListener('click',()=>{

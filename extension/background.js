@@ -4,11 +4,17 @@
    which is why the extension needs no sink window. */
 const HELPER = 'http://127.0.0.1:8787/api/ingest';
 
-async function send(rows, draftId, diag) {
+async function send(msg) {
   const r = await fetch(HELPER, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ draftId: draftId || '', picks: rows, diag: diag || null })
+    body: JSON.stringify({
+      draftId: msg.draftId || '',
+      picks: msg.picks || [],
+      source: msg.source || 'espn',      // which site's room these came from
+      teamCount: msg.teamCount || null,  // Yahoo rooms know their own size
+      diag: msg.diag || null
+    })
   });
   if (!r.ok) throw new Error('HTTP ' + r.status);
   return r.json();
@@ -21,7 +27,7 @@ function badge(text, color) {
 
 chrome.runtime.onMessage.addListener((msg, sender, reply) => {
   if (!msg || msg.type !== 'ff-picks') return;
-  send(msg.picks || [], msg.draftId, msg.diag)
+  send(msg)
     .then(res => {
       badge(String(res.total || 0), '#0a7d33');
       reply({ ok: true, total: res.total, added: res.added });
