@@ -1853,6 +1853,14 @@ function initCompare(){
     },4000);
   });
 
+  /* One click to the helper's own account of itself. When something looks
+     wrong mid-draft this is the page to open -- and the page to paste. */
+  const stat=document.getElementById('livestat');
+  stat.style.cursor='pointer';
+  stat.addEventListener('click',()=>{
+    window.open('http://127.0.0.1:8787/api/log','ffhelperlog');
+  });
+
   document.getElementById('myteam').addEventListener('change',e=>{
     state.myTeam=e.target.value||null;
     render();paintLive();

@@ -5,3 +5,5 @@
 .launcher.log
 __pycache__/
 draft_config.json
+draft_sync.log
+draft_sync.log.1

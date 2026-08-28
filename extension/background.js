@@ -4,11 +4,11 @@
    which is why the extension needs no sink window. */
 const HELPER = 'http://127.0.0.1:8787/api/ingest';
 
-async function send(rows, draftId) {
+async function send(rows, draftId, diag) {
   const r = await fetch(HELPER, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ draftId: draftId || '', picks: rows })
+    body: JSON.stringify({ draftId: draftId || '', picks: rows, diag: diag || null })
   });
   if (!r.ok) throw new Error('HTTP ' + r.status);
   return r.json();
@@ -21,13 +21,17 @@ function badge(text, color) {
 
 chrome.runtime.onMessage.addListener((msg, sender, reply) => {
   if (!msg || msg.type !== 'ff-picks') return;
-  send(msg.picks || [], msg.draftId)
+  send(msg.picks || [], msg.draftId, msg.diag)
     .then(res => {
       badge(String(res.total || 0), '#0a7d33');
       reply({ ok: true, total: res.total, added: res.added });
     })
     .catch(err => {
       badge('!', '#cc0000');
+      // The helper is unreachable, so this cannot be logged there. Keep it here
+      // -- chrome://extensions -> service worker -> Console has the trail.
+      console.warn('[FF Research] helper unreachable:', String(err.message || err),
+                   'picks queued:', (msg.picks || []).length);
       reply({ ok: false, error: String(err.message || err) });
     });
   return true;                       // keep the channel open for the async reply

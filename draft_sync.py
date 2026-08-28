@@ -34,6 +34,7 @@ auth error and the page shows it.
 
 import argparse
 import base64
+import collections
 import concurrent.futures
 import json
 import re
@@ -64,6 +65,60 @@ def _self_version():
 
 VERSION = _self_version()
 CONFIG = os.path.join(HERE, "draft_config.json")
+LOGFILE = os.path.join(HERE, "draft_sync.log")
+
+
+class Log:
+    """Why this exists, in one paragraph.
+
+    A live draft went wrong three ways in one night and every one of them was
+    invisible: the companion stopped posting and nothing said so, the board got
+    cleared and nothing said why, and picks that never arrived left no trace.
+    Diagnosing it meant hand-querying the API mid-draft. So: every decision this
+    process makes is now a line, kept in memory for /api/log and appended to
+    draft_sync.log so it survives a restart.
+
+    Deliberately not the `logging` module -- this has to be readable by someone
+    who is not a programmer, mid-draft, in a browser tab."""
+
+    MAX = 800                       # lines held for /api/log
+    ROTATE_AT = 2 * 1024 * 1024     # bytes, then the file starts over
+
+    def __init__(self, path=LOGFILE):
+        self.path = path
+        self.lock = threading.Lock()
+        self.lines = collections.deque(maxlen=self.MAX)
+        self.counts = collections.Counter()
+
+    def __call__(self, event, **fields):
+        ts = time.time()
+        bits = " ".join("%s=%s" % (k, v) for k, v in fields.items() if v is not None)
+        line = "%s  %-18s %s" % (
+            time.strftime("%H:%M:%S", time.localtime(ts)), event, bits)
+        with self.lock:
+            self.lines.append({"t": round(ts, 1), "event": event, "fields": fields,
+                               "line": line})
+            self.counts[event] += 1
+            try:
+                if os.path.exists(self.path) and os.path.getsize(self.path) > self.ROTATE_AT:
+                    os.replace(self.path, self.path + ".1")
+                with open(self.path, "a", encoding="utf-8") as f:
+                    f.write("%s %s\n" % (time.strftime("%Y-%m-%d", time.localtime(ts)), line))
+            except Exception:
+                pass                # logging must never be the thing that breaks
+        return line
+
+    def recent(self, n=200, event=None):
+        with self.lock:
+            rows = [r for r in self.lines if not event or r["event"] == event]
+        return rows[-n:]
+
+    def summary(self):
+        with self.lock:
+            return dict(self.counts)
+
+
+LOG = Log()
 UA = ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
       "Chrome/126.0 Safari/537.36")
 BASE = "https://lm-api-reads.fantasy.espn.com/apis/v3/games/ffl/seasons"
@@ -117,6 +172,9 @@ class Ingest:
         self.started = None
         self.team_count = None   # exact size, looked up from the league
         self.league_teams = []
+        self.client = {}         # what the draft-room companion reports about itself
+        self.client_at = None
+        self.last_post = None
         self.by_name = {}
         try:
             for p in json.load(open(data_path))["players"]:
@@ -175,8 +233,10 @@ class Ingest:
                         self.team_count = len(names)
                         self.league_teams = names
                 print("league %s has %d teams" % (draft_id, len(names)))
+                LOG("league.size", draft=draft_id, teams=len(names))
         except Exception as e:
             print("league size lookup failed for %s: %s" % (draft_id, e), file=sys.stderr)
+            LOG("league.size.failed", draft=draft_id, err="%s: %s" % (type(e).__name__, e))
 
     def _conflicts(self, rows):
         """Does this batch name a different player in a slot we already hold?
@@ -212,6 +272,20 @@ class Ingest:
             have = set((k[0] - 1) * per + k[1] for k in keys)
             return [o for o in range(1, last + 1) if o not in have]
 
+    def note_client(self, diag):
+        """Whatever the draft-room companion can tell us about itself.
+
+        The night this broke, the helper had no idea whether the extension was
+        even loaded, on what URL, in which frame, or whether it was reading rows
+        it could not parse. Now it says so on every post."""
+        if not isinstance(diag, dict):
+            return
+        with self.lock:
+            self.client = {k: diag.get(k) for k in
+                           ("url", "frame", "rows", "unparsed", "lastUnparsed",
+                            "ext", "uptime") if diag.get(k) is not None}
+            self.client_at = time.time()
+
     def add(self, rows, draft_id=None):
         """Any POST -- even an empty one -- is a heartbeat proving the draft room
         is still open. Freshness must track that, not the last pick: a 30s gap
@@ -231,10 +305,14 @@ class Ingest:
             if self._conflicts(rows):
                 print("new draft (%s -> %s); clearing %d picks"
                       % (self.draft_id, draft_id, len(self.picks)))
+                LOG("draft.cleared", was=self.draft_id, now=draft_id,
+                    dropped=len(self.picks), why="conflicting pick")
                 self.reset(draft_id)
             else:
                 print("league id changed (%s -> %s); keeping %d picks, no conflict"
                       % (self.draft_id, draft_id, len(self.picks)))
+                LOG("draft.id.changed", was=self.draft_id, now=draft_id,
+                    kept=len(self.picks), why="no conflict, board preserved")
                 with self.lock:
                     self.draft_id = draft_id
                     self.team_count = None
@@ -263,6 +341,7 @@ class Ingest:
                         continue
                     # 1.01 replayed with a different player: the room restarted
                     print("pick 1.01 changed; treating as a new draft")
+                    LOG("draft.restarted", at="1.01", dropped=len(self.picks))
                     self.picks = {}
                 pid, info = self.resolve(r.get("name", ""), r.get("pos"), r.get("nfl"))
                 self.picks[key] = {
@@ -271,6 +350,7 @@ class Ingest:
                 }
                 added += 1
             self.updated = time.time()
+            self.last_post = self.updated
         return added
 
     def snapshot(self, teams_per_round):
@@ -632,18 +712,41 @@ class Handler(SimpleHTTPRequestHandler):
             n = int(self.headers.get("Content-Length") or 0)
             payload = json.loads(self.rfile.read(n).decode() or "[]")
             draft_id = None
+            diag = None
             if isinstance(payload, dict):
                 draft_id = payload.get("draftId")
                 rows = payload.get("picks") or []
+                diag = payload.get("diag")
             else:
                 rows = payload
+            gap_before = len(INGEST.missing()) if INGEST else 0
+            silent = None
+            if INGEST and INGEST.last_post:
+                silent = round(time.time() - INGEST.last_post, 1)
+            if INGEST:
+                INGEST.note_client(diag)
             added = INGEST.add(rows, draft_id) if INGEST else 0
         except Exception as e:
+            LOG("ingest.failed", err="%s: %s" % (type(e).__name__, e))
             body = json.dumps({"ok": False, "error": str(e)}).encode()
         else:
             miss = INGEST.missing() if INGEST else []
+            total = len(INGEST.picks) if INGEST else 0
+            # A quiet post is the heartbeat and there are a lot of them; log the
+            # ones that carry information -- picks arriving, a gap opening or
+            # closing, rows the companion could not read, or a silence long
+            # enough that the room had probably stopped reporting.
+            if added or len(miss) != gap_before or (silent is not None and silent > 20) \
+               or (diag or {}).get("unparsed"):
+                LOG("ingest", sent=len(rows), added=added, total=total,
+                    missing=len(miss) or None, draft=draft_id,
+                    silent_for=silent if (silent or 0) > 20 else None,
+                    unreadable=(diag or {}).get("unparsed") or None,
+                    frame=(diag or {}).get("frame"))
+            if (diag or {}).get("lastUnparsed"):
+                LOG("feed.unreadable", text=repr((diag or {})["lastUnparsed"])[:120])
             body = json.dumps({"ok": True, "added": added,
-                               "total": len(INGEST.picks) if INGEST else 0,
+                               "total": total,
                                "missing": len(miss)}).encode()
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
@@ -667,7 +770,45 @@ class Handler(SimpleHTTPRequestHandler):
             self.wfile.write(body)
             return
 
+        if self.path.split("?")[0] == "/api/log":
+            from urllib.parse import urlparse, parse_qs
+            q = parse_qs(urlparse(self.path).query)
+            n = int((q.get("n") or ["200"])[0])
+            ev = (q.get("event") or [None])[0]
+            rows = LOG.recent(n, ev)
+            if (q.get("format") or [""])[0] == "json":
+                body = json.dumps({"version": VERSION, "counts": LOG.summary(),
+                                   "lines": rows}).encode()
+                ctype = "application/json"
+            else:
+                # Plain text on purpose: this gets read in a browser tab, often
+                # mid-draft, and often pasted to someone else.
+                head = ["FF Research draft helper  ---  version %s" % VERSION,
+                        "log file: %s" % LOGFILE, ""]
+                if INGEST:
+                    silent = ("%.0fs ago" % (time.time() - INGEST.last_post)
+                              if INGEST.last_post else "never")
+                    head += ["picks held : %d" % len(INGEST.picks),
+                             "missing    : %s" % (INGEST.missing() or "none"),
+                             "draft id   : %s" % (INGEST.draft_id or "-"),
+                             "team count : %s" % (INGEST.team_count or "unknown"),
+                             "last post  : %s" % silent,
+                             "companion  : %s" % (INGEST.client or "has never reported"),
+                             ""]
+                head += ["counts: %s" % LOG.summary(), "", "-" * 70]
+                body = ("\n".join(head + [r["line"] for r in rows]) + "\n").encode()
+                ctype = "text/plain; charset=utf-8"
+            self.send_response(200)
+            self.send_header("Content-Type", ctype)
+            self.send_header("Content-Length", str(len(body)))
+            self._cors()
+            self.end_headers()
+            self.wfile.write(body)
+            return
+
         if self.path.split("?")[0] == "/api/reset":
+            LOG("reset", dropped=len(INGEST.picks) if INGEST else 0,
+                by=self.headers.get("Referer") or "direct")
             if INGEST:
                 INGEST.reset()
             STATE.set(picks=[], teams=[], players={}, status="waiting",
@@ -897,6 +1038,9 @@ def main():
             sys.exit("Port %d is already in use -- a helper is probably running "
                      "already (%s). Nothing to do." % (args.port, e))
         print("Draft helper on http://127.0.0.1:%d" % args.port)
+        print("Log at  http://127.0.0.1:%d/api/log" % args.port)
+        LOG("helper.start", version=VERSION, port=args.port,
+            mode="room-only" if args.room_only else ("demo" if args.demo else "api"))
         try:
             srv.serve_forever()
         except KeyboardInterrupt:

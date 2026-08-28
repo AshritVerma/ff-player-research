@@ -18,7 +18,8 @@
   var EVERY = 1500;                  // how often to read the room
   var BEAT = 5000;                   // ping the helper at least this often
   var seen = Object.create(null), sent = 0, lastPing = 0, everFound = false;
-  var unparsed = 0, lastUnparsed = '';
+  var unparsed = 0, lastUnparsed = '', lastRows = 0, matchedBy = '';
+  var START = Date.now();
 
   // Re-read on every sweep rather than once at load: ESPN is a single-page app
   // and the query string changes without the script being torn down.
@@ -59,7 +60,18 @@
   function post(rows) {
     lastPing = Date.now();
     try {
-      chrome.runtime.sendMessage({ type: 'ff-picks', picks: rows, draftId: draftId() }, function (res) {
+      // Everything the helper would have wanted to know the night this broke:
+      // whether a companion is running at all, on what URL, in which frame, how
+      // many feed rows it can see, and whether any of them are unreadable.
+      var diag = {
+        url: location.pathname + location.search.slice(0, 120),
+        frame: (window.top === window ? 'top' : 'iframe'),
+        rows: lastRows, matchedBy: matchedBy,
+        unparsed: unparsed, lastUnparsed: lastUnparsed || undefined,
+        ext: (chrome.runtime.getManifest && chrome.runtime.getManifest().version) || '?',
+        uptime: Math.round((Date.now() - START) / 1000)
+      };
+      chrome.runtime.sendMessage({ type: 'ff-picks', picks: rows, draftId: draftId(), diag: diag }, function (res) {
         if (chrome.runtime.lastError || !res || !res.ok) {
           // let anything we failed to deliver be picked up on the next sweep
           for (var i = 0; i < rows.length; i++) delete seen[rows[i].round + '.' + rows[i].pick];
@@ -79,8 +91,10 @@
 
   function scan() {
     var rows = document.querySelectorAll('li.pick-message__container');
-    if (!rows.length) rows = document.querySelectorAll('[class*="pick-message__container"]');
-    if (!rows.length) rows = document.querySelectorAll('[class*="pick-message"]');
+    matchedBy = 'li.pick-message__container';
+    if (!rows.length) { rows = document.querySelectorAll('[class*="pick-message__container"]'); matchedBy = 'class*=pick-message__container'; }
+    if (!rows.length) { rows = document.querySelectorAll('[class*="pick-message"]'); matchedBy = 'class*=pick-message'; }
+    lastRows = rows.length;
     if (!rows.length) {
       // Not the draft room (or not rendered yet). Say nothing, keep looking --
       // but once we have found picks here, keep the heartbeat going so the
