@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "FF Research Draft Companion",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Sends ESPN and Yahoo draft-room picks to the local FF Research helper on 127.0.0.1:8787.",
   "host_permissions": [
     "http://127.0.0.1:8787/*"

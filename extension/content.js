@@ -96,10 +96,15 @@
     if (!rows.length) { rows = document.querySelectorAll('[class*="pick-message"]'); matchedBy = 'class*=pick-message'; }
     lastRows = rows.length;
     if (!rows.length) {
-      // Not the draft room (or not rendered yet). Say nothing, keep looking --
-      // but once we have found picks here, keep the heartbeat going so the
-      // helper knows the room is still open.
-      if (everFound && Date.now() - lastPing > BEAT) post([]);
+      /* Not the draft room, or it has not rendered yet. Stay quiet on ordinary
+         pages -- but on something that looks like a draft room, report even
+         with nothing to send. Silence is indistinguishable from an extension
+         that never loaded, which is exactly the ambiguity that made a live
+         failure take twenty minutes to place. */
+      var inRoom = /draft/i.test(location.pathname);
+      if (inRoom || everFound) {
+        if (Date.now() - lastPing > BEAT) post([]);
+      }
       return;
     }
     everFound = true;
