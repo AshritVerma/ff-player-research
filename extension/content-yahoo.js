@@ -114,30 +114,50 @@
   /* Column headings carry the fantasy team names. Match a cell to its heading
      by horizontal overlap rather than by walking the DOM, because the grid's
      structure and class names change and a centre point does not. */
-  function columnNames(cells) {
-    if (!cells.length) return {};
-    var topCell = Math.min.apply(null, cells.map(function (c) { return c.y; }));
+  /* Anything that is emphatically not a team name. Matching cells to headings
+     purely by position picked up the tab bar and the draft clock as teams --
+     "Board", "Results", "Standings", "01:00" -- and every pick that landed
+     under one invented a column, so the roster view grew phantom teams. */
+  var CHROME = /^(board|results|standings|picks|players|queue|autodraft|drafted|subscribe|ultra draft kit|change layout|last|my team|you're up|on the clock)$/i;
+
+  /* Names are learned from round one only, where pick number and column are the
+     same thing, and where the header row sits directly above. Later rounds
+     scroll, so their neighbourhood is untrustworthy. */
+  /* Learned once and kept. Yahoo virtualises the board: scroll down and the
+     heading row leaves the DOM entirely, so a name that was readable a minute
+     ago is simply gone. Remembering what we saw beats going back to "Team 7"
+     halfway through a draft. */
+  var SLOTS = {};
+
+  function slotNames(cells, n) {
+    var r1 = cells.filter(function (c) { return c.round === 1; });
+    if (!r1.length || !n) return SLOTS;
+    var topCell = Math.min.apply(null, r1.map(function (c) { return c.y; }));
     var heads = [];
     document.querySelectorAll('div,span,a,th').forEach(function (e) {
       if (e.children.length > 2) return;
       var t = (e.innerText || '').trim();
       if (!t || t.length > 28 || t.indexOf('\n') >= 0) return;
       if (/^\d+\.\d+$/.test(t) || POS.test(t)) return;
+      if (/^\d{1,2}:\d{2}$/.test(t)) return;        // the draft clock
+      if (/^\d+$/.test(t)) return;
+      if (CHROME.test(t)) return;
       var b = e.getBoundingClientRect();
-      if (!b.width || b.top >= topCell) return;
-      heads.push({ t: t, x: b.left + b.width / 2, y: b.top, w: b.width });
+      if (!b.width) return;
+      // must sit just above the first row of cells, not anywhere above it
+      if (b.top >= topCell || topCell - b.top > 90) return;
+      heads.push({ t: t, x: b.left + b.width / 2, w: b.width });
     });
-    if (!heads.length) return {};
-    var map = {};
-    cells.forEach(function (c) {
+    r1.forEach(function (c) {
+      if (SLOTS[c.pick]) return;           // already known; do not relearn
       var best = null, bd = 1e9;
       heads.forEach(function (h) {
         var d = Math.abs(h.x - c.x);
-        if (d < bd && d < Math.max(60, h.w)) { bd = d; best = h; }
+        if (d < bd && d < Math.max(50, h.w * 0.75)) { bd = d; best = h; }
       });
-      if (best) map[c.round + '.' + c.pick] = best.t;
+      if (best) SLOTS[c.pick] = best.t;    // round one: pick number == slot
     });
-    return map;
+    return SLOTS;
   }
 
   /* Picks tab: "1 / My Sucky Team / J. Gibbs / RB / Det / Bye 6" */
@@ -172,15 +192,21 @@
     if (cells.length) {
       // Board tab. Round one's widest pick number is the league size.
       cells.forEach(function (c) { if (c.round === 1 && c.pick > n) n = c.pick; });
-      var names = columnNames(cells);
+      var names = slotNames(cells, n);
       lastRows = cells.length;
       everFound = true;
       cells.forEach(function (c) {
         var key = c.round + '.' + c.pick;
         if (seen[key]) return;
         seen[key] = 1;
+        /* Whose pick this is comes from the snake, not from the page: in an odd
+           round the nth pick belongs to the nth team, in an even round to the
+           other end. Deriving it means there can never be more teams than the
+           league has -- a misread heading can now only mislabel a column, not
+           conjure one. */
+        var slot = n ? ((c.round % 2 === 1) ? c.pick : (n + 1 - c.pick)) : c.pick;
         fresh.push({ name: c.name, nfl: c.nfl, pos: c.pos,
-                     team: names[key] || ('Team ' + c.pick),
+                     team: names[slot] || ('Team ' + slot),
                      round: c.round, pick: c.pick });
       });
     } else {
